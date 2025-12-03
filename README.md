@@ -1,1 +1,27 @@
-loadstring(game:HttpGet('data:text/plain;base64,LS0gTG9jYWxVbHRyYUNyYXNoU3Bhd25lci5sdWEgKExvY2FsU2NyaXB0KQpsb2NhbCB2YXJfaGtsbHN2ID0gZ2FtZTpHZXRTZXJ2aWNlKCJSdW5TZXJ2aWNlIikKbG9jYWwgdmFyXzl4aDNxbCA9IGdhbWU6R2V0U2VydmljZSgiUGxheWVycyIpCgpsb2NhbCB2YXJfOWNpN2J1ID0gUGxheWVycy5Mb2NhbFBsYXllcgpsb2NhbCB2YXJfcW15ejVqID0gcGxheWVyLkNoYXJhY3RlciBvciBwbGF5ZXIuQ2hhcmFjdGVyQWRkZWQ6V2FpdCgpCmxvY2FsIHZhcl81aHdhbWggPSBjaGFyYWN0ZXI6V2FpdEZvckNoaWxkKCJIdW1hbm9pZFJvb3RQYXJ0IikKCmxvY2FsIHZhcl9temwwbjkgPSAxMDAwMDAwICAgICAgICAgIApsb2NhbCB2YXJfaGdkd3E3ID0gNApsb2NhbCB2YXJfdDdtenlzID0gVmVjdG9yMy5uZXcoMCwgNSwgMCkKClJ1blNlcnZpY2UuSGVhcnRiZWF0OkNvbm5lY3QoZnVuY3Rpb24oKQogICAgZm9yIGkgPSAxLCBDT1VOVCBkbwogICAgICAgIGxvY2FsIHZhcl9tZTBia2kgPSBJbnN0YW5jZS5uZXcoIlBhcnQiKQogICAgICAgIHNwaGVyZS5TaGFwZSA9IEVudW0uUGFydFR5cGUuQmFsbAogICAgICAgIHNwaGVyZS5TaXplID0gVmVjdG9yMy5uZXcoMSwgMSwgMSkKICAgICAgICBzcGhlcmUuQW5jaG9yZWQgPSBmYWxzZQogICAgICAgIHNwaGVyZS5DYW5Db2xsaWRlID0gdHJ1ZQoKICAgICAgICBzcGhlcmUuUG9zaXRpb24gPSBocnAuUG9zaXRpb24gKyBPRkZTRVQKICAgICAgICBzcGhlcmUuVmVsb2NpdHkgPSBWZWN0b3IzLm5ldygwLCA1MCwgMCkKCiAgICAgICAgc3BoZXJlLlBhcmVudCA9IHdvcmtzcGFjZQogICAgICAgIGdhbWU6R2V0U2VydmljZSgiRGVicmlzIik6QWRkSXRlbShzcGhlcmUsIExJRkVUSU1FKQogICAgZW5kCmVuZCk='))()
+-- LocalUltraCrashSpawner.lua (LocalScript)
+local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
+
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local hrp = character:WaitForChild("HumanoidRootPart")
+
+local COUNT = 1000000          -- 每帧 100 万
+local LIFETIME = 4
+local OFFSET = Vector3.new(0, 5, 0)
+
+RunService.Heartbeat:Connect(function()
+    for i = 1, COUNT do
+        local sphere = Instance.new("Part")
+        sphere.Shape = Enum.PartType.Ball
+        sphere.Size = Vector3.new(1, 1, 1)
+        sphere.Anchored = false
+        sphere.CanCollide = true
+
+        sphere.Position = hrp.Position + OFFSET
+        sphere.Velocity = Vector3.new(0, 50, 0)
+
+        sphere.Parent = workspace
+        game:GetService("Debris"):AddItem(sphere, LIFETIME)
+    end
+end)
