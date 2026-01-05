@@ -1,0 +1,279 @@
+-- [[ GEMINI IRON OBFUSCATOR V13 - MAXIMUM STRENGTH FIXED ]]
+local ScreenGui = Instance.new("ScreenGui")
+local MainFrame = Instance.new("Frame")
+local ObfuscateBtn = Instance.new("TextButton")
+local Toggle = Instance.new("TextButton")
+
+local function GetSafeParent()
+    local success, core = pcall(function() return game:GetService("CoreGui") end)
+    if success and core then return core end
+    return game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+end
+
+ScreenGui.Parent = GetSafeParent()
+ScreenGui.Name = "IronV13_" .. math.random(1000, 9999)
+ScreenGui.ResetOnSpawn = false
+
+MainFrame.Parent = ScreenGui
+MainFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 12)
+MainFrame.Position = UDim2.new(0.5, -160, 0.5, -130)
+MainFrame.Size = UDim2.new(0, 320, 0, 260)
+MainFrame.Active, MainFrame.Draggable = true, true
+Instance.new("UICorner", MainFrame)
+
+local function CreateBox(pos, size, ph)
+    local S = Instance.new("ScrollingFrame", MainFrame)
+    S.Position, S.Size, S.CanvasSize = pos, size, UDim2.new(0, 0, 10, 0)
+    S.ScrollBarThickness, S.BackgroundColor3 = 2, Color3.fromRGB(5, 5, 5)
+    S.BorderSizePixel = 0
+    local T = Instance.new("TextBox", S)
+    T.Size, T.BackgroundTransparency = UDim2.new(1, -5, 1, 0), 1
+    T.PlaceholderText, T.Text = ph, ""
+    T.TextColor3, T.TextSize, T.Font = Color3.new(0, 1, 0.6), 11, Enum.Font.Code
+    T.MultiLine, T.ClearTextOnFocus = true, false
+    T.TextXAlignment, T.TextYAlignment = 0, 0
+    return T
+end
+
+local SourceInput = CreateBox(UDim2.new(0.05,0,0.18,0), UDim2.new(0.9,0,0.3,0), "在此粘贴源码 (支持中文)...")
+local OutputBox = CreateBox(UDim2.new(0.05,0,0.52,0), UDim2.new(0.9,0,0.3,0), "生成的混淆代码...")
+OutputBox.TextColor3 = Color3.fromRGB(255, 255, 0)
+
+-- ================= 修复版极致混淆引擎 =================
+local function MaximumObfuscate(code)
+    -- 清理注释
+    code = code:gsub("%-%-[^\n]*", "")
+    code = code:gsub("%-%-%[%[.-%]%]", "")
+    
+    -- 生成超长随机变量名
+    local function randVar(minLen, maxLen)
+        local chars = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        local nums = "0123456789"
+        local result = "_"
+        local len = math.random(minLen or 10, maxLen or 20)
+        for i = 1, len do
+            if math.random(1, 3) == 1 then
+                result = result .. nums:sub(math.random(1, #nums), math.random(1, #nums))
+            else
+                result = result .. chars:sub(math.random(1, #chars), math.random(1, #chars))
+            end
+        end
+        return result
+    end
+    
+    -- 生成大量变量名
+    local vars = {}
+    for i = 1, 30 do
+        table.insert(vars, randVar(12, 18))
+    end
+    
+    -- 字节流编码
+    local bytes = {}
+    for i = 1, #code do
+        table.insert(bytes, string.byte(code, i))
+    end
+    
+    -- 密钥生成和隐藏
+    local key1 = math.random(50, 150)
+    local key2 = math.random(20, 80)
+    
+    -- 将密钥拆分成多个部分（隐藏真实密钥）
+    local k1_part1 = math.random(10, 40)
+    local k1_part2 = math.random(10, 40)
+    local k1_part3 = key1 - k1_part1 - k1_part2
+    
+    local k2_part1 = math.random(5, 30)
+    local k2_part2 = key2 - k2_part1
+    
+    -- 双层加密（确保可逆）
+    local encoded = {}
+    for i, byte in ipairs(bytes) do
+        -- 第一层：XOR
+        local layer1 = bit32.bxor(byte, key1)
+        -- 第二层：加法（模256确保范围）
+        local layer2 = (layer1 + key2) % 256
+        table.insert(encoded, layer2)
+    end
+    local byteData = table.concat(encoded, ",")
+    
+    -- 复杂状态机
+    local states = {}
+    for i = 1, 8 do
+        table.insert(states, math.random(100000, 999999))
+    end
+    
+    -- 大量垃圾数据
+    local junkArrays = {}
+    for i = 1, 6 do
+        local junk = {}
+        for j = 1, math.random(18, 35) do
+            table.insert(junk, math.random(1, 99999))
+        end
+        table.insert(junkArrays, "{" .. table.concat(junk, ",") .. "}")
+    end
+    
+    -- 虚假函数
+    local fakeFuncs = {}
+    for i = 1, 4 do
+        table.insert(fakeFuncs, string.format(
+            "local function %s(%s,%s)local %s=%s+%s;return %s*%s+%s end;",
+            randVar(8, 12), randVar(5, 8), randVar(5, 8), randVar(5, 8),
+            randVar(5, 8), randVar(5, 8), randVar(5, 8), randVar(5, 8), randVar(5, 8)
+        ))
+    end
+    
+    -- 构建超强混淆代码（修正解密逻辑）
+    local template = string.format([[
+(function()
+%s
+local %s={%s};
+local %s={%s};
+local %s=%d+%d+%d;
+local %s=%d+%d;
+local %s=%s;
+local %s=%s;
+local %s=%s;
+local %s=%s;
+local %s=%s;
+local %s=%s;
+local %s="";
+local %s=%d;
+local %s=0;
+local %s=#%s;
+while %s~=%d do 
+if %s==%d then 
+for %s=1,%s do 
+local %s=%s[%s];
+local %s=(%s-%s)%%256;
+local %s=bit32.bxor(%s,%s);
+%s=%s..string.char(%s);
+end;
+%s=%d;
+elseif %s==%d then 
+%s=%d;
+elseif %s==%d then 
+local %s=loadstring(%s);
+if %s then 
+setfenv(%s,getfenv());
+pcall(%s);
+end;
+%s=%d;
+elseif %s==%d then 
+%s=%d;
+else 
+%s=%d;
+end;
+end;
+end)()]],
+        -- 虚假函数
+        table.concat(fakeFuncs, ""),
+        -- 数据
+        vars[1], byteData,
+        vars[2], table.concat(junkArrays, ","),
+        -- 密钥拆分（隐藏）
+        vars[3], k1_part1, k1_part2, k1_part3,
+        vars[4], k2_part1, k2_part2,
+        -- 垃圾变量
+        vars[5], junkArrays[1],
+        vars[6], junkArrays[2],
+        vars[7], junkArrays[3],
+        vars[8], junkArrays[4],
+        vars[9], junkArrays[5],
+        vars[10], junkArrays[6],
+        -- 结果
+        vars[11],
+        vars[12], states[1],
+        vars[13],
+        vars[14], vars[1],
+        -- 主循环
+        vars[12], states[7],
+        -- 解码阶段（修正逻辑）
+        vars[12], states[1],
+        vars[15], vars[14],
+        vars[16], vars[1], vars[15],
+        vars[17], vars[16], vars[4],  -- 先减去key2
+        vars[18], vars[17], vars[3],  -- 再XOR key1
+        vars[11], vars[11], vars[18],
+        vars[12], states[2],
+        -- 跳转1
+        vars[12], states[2],
+        vars[12], states[3],
+        -- 执行阶段
+        vars[12], states[3],
+        vars[19], vars[11],
+        vars[19],
+        vars[19], vars[19],
+        vars[12], states[4],
+        -- 跳转2
+        vars[12], states[4],
+        vars[12], states[5],
+        -- 退出
+        vars[12], states[7]
+    )
+    
+    -- 极致压缩
+    return template:gsub("\n", " "):gsub("%s%s+", " ")
+end
+
+-- ================= 交互功能 =================
+ObfuscateBtn.Parent = MainFrame
+ObfuscateBtn.Size, ObfuscateBtn.Position = UDim2.new(0.9,0,0,35), UDim2.new(0.05,0,0.85,0)
+ObfuscateBtn.BackgroundColor3, ObfuscateBtn.Text = Color3.fromRGB(0, 180, 100), "⚡ 极致混淆 & 复制"
+ObfuscateBtn.TextColor3 = Color3.new(1, 1, 1)
+ObfuscateBtn.TextSize = 14
+Instance.new("UICorner", ObfuscateBtn)
+
+ObfuscateBtn.MouseButton1Click:Connect(function()
+    local src = SourceInput.Text
+    if src == "" or src:match("^%s*$") then
+        ObfuscateBtn.Text = "❌ 请输入代码"
+        task.delay(1.5, function() 
+            ObfuscateBtn.Text = "⚡ 极致混淆 & 复制" 
+        end)
+        return
+    end
+    
+    ObfuscateBtn.Text = "⏳ 混淆中..."
+    task.wait(0.3)
+    
+    local ok, res = pcall(function() 
+        return MaximumObfuscate(src) 
+    end)
+    
+    if ok then
+        OutputBox.Text = res
+        
+        local copied = false
+        if setclipboard then
+            pcall(function() 
+                setclipboard(res)
+                copied = true
+            end)
+        end
+        
+        if copied then
+            ObfuscateBtn.Text = "✅ 已复制"
+        else
+            ObfuscateBtn.Text = "✅ 已生成"
+        end
+        
+        task.delay(2, function() 
+            ObfuscateBtn.Text = "⚡ 极致混淆 & 复制" 
+        end)
+    else
+        OutputBox.Text = "错误: " .. tostring(res)
+        ObfuscateBtn.Text = "❌ 失败"
+        task.delay(1.5, function() 
+            ObfuscateBtn.Text = "⚡ 极致混淆 & 复制" 
+        end)
+    end
+end)
+
+Toggle.Parent, Toggle.Size = ScreenGui, UDim2.new(0,40,0,40)
+Toggle.Position, Toggle.Text = UDim2.new(1,-50,0.1,0), "ON"
+Toggle.BackgroundColor3, Toggle.TextColor3 = Color3.new(0,0,0), Color3.new(0, 1, 0.5)
+Instance.new("UICorner", Toggle).CornerRadius = UDim.new(1,0)
+Toggle.MouseButton1Click:Connect(function() 
+    MainFrame.Visible = not MainFrame.Visible 
+    Toggle.Text = MainFrame.Visible and "ON" or "OFF" 
+end)
