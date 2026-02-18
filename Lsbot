@@ -1,0 +1,335 @@
+local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
+local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
+
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local CoreGui = game:GetService("CoreGui")
+local Debris = game:GetService("Debris")
+local SoundService = game:GetService("SoundService")
+local TweenService = game:GetService("TweenService")
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "MobileToggle_Fixed"
+if LocalPlayer:FindFirstChild("PlayerGui") then
+    ScreenGui.Parent = LocalPlayer.PlayerGui
+else
+    ScreenGui.Parent = CoreGui
+end
+ScreenGui.IgnoreGuiInset = true 
+
+local ToggleBtn = Instance.new("TextButton")
+ToggleBtn.Name = "Toggle"
+ToggleBtn.Parent = ScreenGui
+ToggleBtn.Size = UDim2.new(0, 80, 0, 40)
+ToggleBtn.Position = UDim2.new(0, 10, 0.45, -20)
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+ToggleBtn.Text = "MENU"
+ToggleBtn.TextColor3 = Color3.new(1, 1, 1)
+ToggleBtn.TextSize = 18
+ToggleBtn.Font = Enum.Font.GothamBold
+ToggleBtn.Active = true
+ToggleBtn.Draggable = true
+ToggleBtn.ZIndex = 100
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 8)
+UICorner.Parent = ToggleBtn
+
+ToggleBtn.Activated:Connect(function()
+    Library:Toggle()
+end)
+
+local LogGui = Instance.new("ScreenGui")
+LogGui.Name = "HitLogs"
+if LocalPlayer:FindFirstChild("PlayerGui") then
+    LogGui.Parent = LocalPlayer.PlayerGui
+else
+    LogGui.Parent = CoreGui
+end
+LogGui.IgnoreGuiInset = true
+
+local LogFrame = Instance.new("Frame")
+LogFrame.Name = "LogContainer"
+LogFrame.Parent = LogGui
+LogFrame.BackgroundTransparency = 1
+LogFrame.Position = UDim2.new(0, 15, 0.5, 20)
+LogFrame.Size = UDim2.new(0, 250, 0, 200)
+
+local LogLayout = Instance.new("UIListLayout")
+LogLayout.Parent = LogFrame
+LogLayout.SortOrder = Enum.SortOrder.LayoutOrder
+LogLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+LogLayout.Padding = UDim.new(0, 4)
+
+local HitSound = Instance.new("Sound")
+HitSound.Name = "HitMarker"
+HitSound.Parent = SoundService
+HitSound.SoundId = "rbxassetid://4817809188" 
+HitSound.Volume = 3
+
+local Window = Library:CreateWindow({
+    Title = "Ragebot - Advanced Logic",
+    Footer = "Vector Re-Calculation",
+    Icon = 95816097006870,
+    NotifySide = "Right"
+})
+
+local Config = {
+    Enabled = false,
+    TeamCheck = true,
+    WallCheck = true,
+    RagdollCheck = true,
+    Wallbang = false,
+    ShowTracer = true,
+    HitLogs = true,
+    HitSound = true,
+    TargetPart = "HumanoidRootPart", 
+    ArgType = "Size", 
+    FireRate = 0.05,
+    Whitelist = {},
+    Blacklist = {}
+}
+
+local Tab = Window:AddTab("Main", "crosshair")
+local Group = Tab:AddLeftGroupbox("Combat")
+
+Group:AddToggle("Enabled", { Text = "Enabled", Default = false, Callback = function(v) Config.Enabled = v end })
+Group:AddToggle("TeamCheck", { Text = "Team Check", Default = true, Callback = function(v) Config.TeamCheck = v end })
+Group:AddToggle("WallCheck", { Text = "Wall Check", Default = true, Callback = function(v) Config.WallCheck = v end })
+Group:AddToggle("RagdollCheck", { Text = "Ragdoll Check", Default = true, Callback = function(v) Config.RagdollCheck = v end })
+Group:AddToggle("Wallbang", { Text = "Wallbang (Bullet TP)", Default = false, Callback = function(v) Config.Wallbang = v end })
+Group:AddToggle("ShowTracer", { Text = "Show Tracers", Default = true, Callback = function(v) Config.ShowTracer = v end })
+Group:AddToggle("HitLogs", { Text = "Show Hit Logs", Default = true, Callback = function(v) Config.HitLogs = v end })
+Group:AddToggle("HitSound", { Text = "Play Hit Sound", Default = true, Callback = function(v) Config.HitSound = v end })
+
+Group:AddSlider("FireRate", {
+    Text = "Fire Rate (Delay)",
+    Default = 0.05,
+    Min = 0,
+    Max = 1,
+    Rounding = 3,
+    Callback = function(Value)
+        Config.FireRate = Value
+    end
+})
+
+Group:AddDropdown("TargetPart", { Values = {"Head", "HumanoidRootPart", "Torso"}, Default = 2, Multi = false, Text = "Target Part", Callback = function(v) Config.TargetPart = v end })
+Group:AddDropdown("ArgMode", { Values = {"Size", "Position", "Normal"}, Default = 1, Multi = false, Text = "Magic Argument", Callback = function(v) Config.ArgType = v end })
+
+local ListTab = Window:AddTab("Players", "users")
+local WhitelistGroup = ListTab:AddLeftGroupbox("Whitelist (Safe)")
+local BlacklistGroup = ListTab:AddRightGroupbox("Blacklist (Focus Target)")
+
+local function GetPlayerNames()
+    local names = {}
+    for _, p in pairs(Players:GetPlayers()) do
+        if p ~= LocalPlayer then
+            table.insert(names, p.Name)
+        end
+    end
+    return names
+end
+
+WhitelistGroup:AddDropdown("WhitelistConfig", {
+    Values = GetPlayerNames(),
+    Default = {},
+    Multi = true,
+    Text = "Select Safe Players",
+    Callback = function(val) Config.Whitelist = val end
+})
+
+WhitelistGroup:AddButton("Refresh", function()
+    Options.WhitelistConfig:SetValues(GetPlayerNames())
+end)
+
+BlacklistGroup:AddDropdown("BlacklistConfig", {
+    Values = GetPlayerNames(),
+    Default = {},
+    Multi = true,
+    Text = "Select Targets Only",
+    Callback = function(val) Config.Blacklist = val end
+})
+
+BlacklistGroup:AddButton("Refresh", function()
+    Options.BlacklistConfig:SetValues(GetPlayerNames())
+end)
+
+local SettingsGroup = Tab:AddLeftGroupbox("Settings")
+SettingsGroup:AddButton("Unload", function() 
+    ScreenGui:Destroy()
+    LogGui:Destroy()
+    Library:Unload() 
+end)
+
+task.spawn(function()
+    local Workspace = game:GetService("Workspace")
+    local ReplicatedStorage = game:GetService("ReplicatedStorage")
+    local Camera = Workspace.CurrentCamera
+    
+    local WeaponEvent = ReplicatedStorage:WaitForChild("Events", 5) and ReplicatedStorage.Events:WaitForChild("WeaponEvent", 5)
+    
+    if not WeaponEvent then
+        Library:Notify("警告: 未找到 WeaponEvent，自瞄可能无法工作")
+    else
+        Library:Notify("脚本加载成功！")
+    end
+
+    local function CreateTracer(from, to)
+        if not Config.ShowTracer then return end
+        local dist = (from - to).Magnitude
+        
+        local p = Instance.new("Part")
+        p.Name = "Tracer"
+        p.Anchored = true
+        p.CanCollide = false
+        p.Material = Enum.Material.ForceField
+        p.Color = Color3.fromRGB(255, 60, 60)
+        p.Transparency = 0.2
+        p.Size = Vector3.new(0.08, 0.08, dist)
+        p.CFrame = CFrame.new(from, to) * CFrame.new(0, 0, -dist/2)
+        p.Parent = Workspace
+        
+        local tween = TweenService:Create(p, TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Transparency = 1,
+            Size = Vector3.new(0, 0, dist)
+        })
+        tween:Play()
+        Debris:AddItem(p, 0.3)
+    end
+
+    local function CreateHitLog(targetName, partName, health)
+        if not Config.HitLogs then return end
+        
+        local Label = Instance.new("TextLabel")
+        Label.Parent = LogFrame
+        Label.Size = UDim2.new(1, 0, 0, 18)
+        Label.BackgroundTransparency = 0.6
+        Label.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+        Label.BorderSizePixel = 0
+        Label.Font = Enum.Font.Code
+        Label.TextSize = 12
+        Label.TextColor3 = Color3.fromRGB(255, 255, 255)
+        Label.TextXAlignment = Enum.TextXAlignment.Left
+        Label.RichText = true
+        Label.Text = string.format(" hit <font color='#ff5555'>%s</font> | part <font color='#ff5555'>%s</font> | hp <font color='#ff5555'>%d</font>", targetName, partName, math.floor(health))
+        
+        Debris:AddItem(Label, 3)
+    end
+
+    local function IsVisible(targetPart, origin)
+        if not Config.WallCheck then return true end
+        local direction = targetPart.Position - origin
+        local params = RaycastParams.new()
+        params.FilterDescendantsInstances = {LocalPlayer.Character, targetPart.Parent, Camera}
+        params.FilterType = Enum.RaycastFilterType.Exclude
+        params.IgnoreWater = true
+        local result = Workspace:Raycast(origin, direction.Unit * direction.Magnitude, params)
+        return result == nil
+    end
+
+    local function IsRagdoll(char)
+        local hum = char:FindFirstChildOfClass("Humanoid")
+        if hum then
+            if hum.PlatformStand or hum:GetState() == Enum.HumanoidStateType.Physics then
+                return true
+            end
+        end
+        return false
+    end
+
+    local function GetTarget()
+        local target = nil
+        local minDist = math.huge
+        local origin = Camera.CFrame.Position
+        
+        local isBlacklistActive = false
+        for _, v in pairs(Config.Blacklist) do
+            if v then isBlacklistActive = true break end
+        end
+
+        for _, p in pairs(Players:GetPlayers()) do
+            if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild(Config.TargetPart) and p.Character:FindFirstChild("Humanoid") then
+                if p.Character.Humanoid.Health <= 1 then continue end
+                if Config.RagdollCheck and IsRagdoll(p.Character) then continue end
+                if isBlacklistActive and not Config.Blacklist[p.Name] then continue end
+                if Config.Whitelist[p.Name] then continue end
+                if Config.TeamCheck and p.Team == LocalPlayer.Team then continue end
+
+                local part = p.Character[Config.TargetPart]
+                local dist = (part.Position - origin).Magnitude
+                local canSee = IsVisible(part, origin)
+                if Config.Wallbang then canSee = true end
+
+                if dist < minDist and dist < 1000 and canSee then
+                    minDist = dist
+                    target = part
+                end
+            end
+        end
+        return target
+    end
+
+    while true do
+        task.wait(Config.FireRate)
+        if Config.Enabled and LocalPlayer.Character and WeaponEvent then
+            local target = GetTarget()
+            local tool = LocalPlayer.Character:FindFirstChildOfClass("Tool")
+
+            if target and tool then
+                local origin = Camera.CFrame.Position
+                local hitPos = target.Position
+                local weaponName = tool.Name
+                
+                -- 默认的 lookCFrame 是从相机看向目标的
+                local lookCFrame = CFrame.lookAt(origin, hitPos)
+                local mysteryVector = Vector3.new(0,0,0)
+
+                local bulletOrigin = origin
+                local tracerOrigin = origin
+                
+                if Config.Wallbang then
+                    -- 视觉部分：酷炫的随机角度
+                    local offsetX = math.random() * 4 - 2
+                    local offsetY = math.random() * 3 + 2 
+                    local offsetZ = math.random() * 4 - 2
+                    tracerOrigin = hitPos + Vector3.new(offsetX, offsetY, offsetZ)
+                    
+                    -- 逻辑部分修复：高级计算
+                    -- 1. 计算出从相机指向敌人的单位向量
+                    local directionUnit = (hitPos - origin).Unit
+                    
+                    -- 2. 将生成点设置在敌人位置往回退 2 Studs 的地方
+                    -- 这样既在模型外，又绝对贴脸，且方向正确
+                    bulletOrigin = hitPos - (directionUnit * 2)
+
+                    -- 3. [关键修复] 重算 LookCFrame
+                    -- 之前的代码虽然改变了 bulletOrigin，但 lookCFrame 还是从几千米外的相机计算的
+                    -- 这里我们强制让子弹朝向等于：从"新生成点"指向"敌人中心"
+                    lookCFrame = CFrame.lookAt(bulletOrigin, hitPos)
+                end
+
+                if Config.ArgType == "Size" then
+                    mysteryVector = target.Size 
+                elseif Config.ArgType == "Normal" then
+                    mysteryVector = (origin - hitPos).Unit
+                else
+                    mysteryVector = hitPos
+                end
+
+                local args = { "Fire", { bulletOrigin, { target, mysteryVector }, lookCFrame }, weaponName }
+                WeaponEvent:FireServer(unpack(args))
+                
+                CreateTracer(tracerOrigin, hitPos)
+                
+                if Config.HitSound then
+                    HitSound:Play()
+                end
+                
+                if target.Parent and target.Parent:FindFirstChild("Humanoid") then
+                    CreateHitLog(target.Parent.Name, target.Name, target.Parent.Humanoid.Health)
+                end
+            end
+        end
+    end
+end)
+
