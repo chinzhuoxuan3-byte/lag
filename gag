@@ -1,0 +1,139 @@
+local repo = "https://raw.githubusercontent.com/deividcomsono/Obsidian/main/"
+local Library = loadstring(game:HttpGet(repo .. "Library.lua"))()
+local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))()
+local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
+
+local Window = Library:CreateWindow({
+	Title = "花园地坪线脚本",
+	Footer = "作者Yeskid",
+	Icon = 95816097006870,
+	NotifySide = "Right",
+	ShowCustomCursor = true,
+})
+
+local Tabs = {
+	Main = Window:AddTab("Main", "user"),
+	["UI Settings"] = Window:AddTab("UI Settings", "settings"),
+}
+
+local MainGroup = Tabs.Main:AddLeftGroupbox("自动功能")
+local InfoGroup = Tabs.Main:AddRightGroupbox("商店实时库存")
+
+local SeedData = {
+    ["Carrot"] = "Carrot Seed", ["Corn"] = "Corn Seed", ["Onion"] = "Onion Seed",
+    ["Strawberry"] = "Strawberry Seed", ["Mushroom"] = "Mushroom Seed",
+    ["Tomato"] = "Tomato Seed", ["Beetroot"] = "Beetroot Seed", ["Apple"] = "Apple Seed",
+    ["Rose"] = "Rose Seed", ["Wheat"] = "Wheat Seed", ["Banana"] = "Banana Seed",
+    ["Plum"] = "Plum Seed", ["Potato"] = "Potato Seed", ["Cabbage"] = "Cabbage Seed", ["Cherry"] = "Cherry Seed"
+}
+
+local BuyList, PlantList = {}, {}
+for k, v in pairs(SeedData) do table.insert(BuyList, v) table.insert(PlantList, k) end
+
+local Labels = {}
+for _, v in ipairs(BuyList) do 
+    Labels[v] = InfoGroup:AddLabel(v .. ": 0") 
+end
+
+task.spawn(function()
+    local PlayerGui = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
+    while task.wait(0.5) do
+        local ScrollFrame = PlayerGui:FindFirstChild("SeedShop") and PlayerGui.SeedShop:FindFirstChild("Frame") and PlayerGui.SeedShop.Frame:FindFirstChild("ScrollingFrame")
+        if ScrollFrame then
+            for _, item in ipairs(ScrollFrame:GetChildren()) do
+                local mainInfo = item:FindFirstChild("MainInfo")
+                if mainInfo then
+                    local seedNameTag = mainInfo:FindFirstChild("SeedName")
+                    local stockTextTag = mainInfo:FindFirstChild("StockText")
+                    if seedNameTag and stockTextTag then
+                        local name = seedNameTag.Text
+                        local stockNum = string.match(stockTextTag.Text, "%d+") or "0"
+                        if Labels[name] then
+                            Labels[name]:SetText(name .. ": " .. stockNum)
+                        end
+                    end
+                end
+            end
+        end
+    end
+end)
+
+MainGroup:AddToggle("AutoSell", {
+    Text = "自动出售所有物品",
+    Default = false,
+    Callback = function(Value)
+        _G.AutoSell = Value
+        task.spawn(function()
+            while _G.AutoSell do
+                game:GetService("ReplicatedStorage").RemoteEvents.SellItems:InvokeServer("SellAll")
+                task.wait(Library.Options.ActionDelay.Value)
+            end
+        end)
+    end
+})
+
+MainGroup:AddToggle("AutoBuy", {
+    Text = "自动购买选中种子",
+    Default = false,
+    Callback = function(Value)
+        _G.AutoBuy = Value
+        task.spawn(function()
+            while _G.AutoBuy do
+                for name, isSelected in pairs(Library.Options.BuyDropdown.Value) do
+                    if isSelected and _G.AutoBuy then
+                        game:GetService("ReplicatedStorage").RemoteEvents.PurchaseShopItem:InvokeServer("SeedShop", name)
+                        task.wait(math.max(Library.Options.ActionDelay.Value, 0.01))
+                    end
+                end
+                task.wait()
+            end
+        end)
+    end
+})
+
+MainGroup:AddDropdown("BuyDropdown", { Values = BuyList, Default = 1, Multi = true, Text = "选择购买种子" })
+
+MainGroup:AddToggle("AutoPlant", {
+    Text = "自动种植选中植物",
+    Default = false,
+    Callback = function(Value)
+        _G.AutoPlant = Value
+        task.spawn(function()
+            local pos = Vector3.new(417.4727783203125, 208.60179138183594, 349.9797058105469)
+            while _G.AutoPlant do
+                for name, isSelected in pairs(Library.Options.PlantDropdown.Value) do
+                    if isSelected and _G.AutoPlant then
+                        game:GetService("ReplicatedStorage").RemoteEvents.PlantSeed:InvokeServer(name, pos)
+                        task.wait(math.max(Library.Options.ActionDelay.Value, 0.01))
+                    end
+                end
+                task.wait()
+            end
+        end)
+    end
+})
+
+MainGroup:AddDropdown("PlantDropdown", { Values = PlantList, Default = 1, Multi = true, Text = "选择种植植物" })
+
+MainGroup:AddSlider("ActionDelay", {
+    Text = "延迟速度",
+    Default = 0.1, Min = 0, Max = 2, Rounding = 2, Compact = false,
+})
+
+local MenuGroup = Tabs["UI Settings"]:AddLeftGroupbox("Menu")
+MenuGroup:AddLabel("Menu bind"):AddKeyPicker("MenuKeybind", { Default = "RightShift", NoUI = true, Text = "Menu keybind" })
+MenuGroup:AddButton("Unload", function() Library:Unload() end)
+Library.ToggleKeybind = Library.Options.MenuKeybind 
+
+SaveManager:SetLibrary(Library)
+SaveManager:IgnoreThemeSettings()
+SaveManager:SetIgnoreIndexes({ "MenuKeybind" })
+SaveManager:BuildConfigSection(Tabs["UI Settings"])
+ThemeManager:SetLibrary(Library)
+ThemeManager:ApplyToTab(Tabs["UI Settings"])
+
+Library:OnUnload(function()
+    _G.AutoSell = false
+    _G.AutoBuy = false
+    _G.AutoPlant = false
+end)
