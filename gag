@@ -4,8 +4,8 @@ local ThemeManager = loadstring(game:HttpGet(repo .. "addons/ThemeManager.lua"))
 local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
 
 local Window = Library:CreateWindow({
-	Title = "花园地坪线脚本",
-	Footer = "作者Yeskid",
+	Title = "Yeskid Hub",
+	Footer = "version: 2026 Stable",
 	Icon = 95816097006870,
 	NotifySide = "Right",
 	ShowCustomCursor = true,
@@ -13,127 +13,187 @@ local Window = Library:CreateWindow({
 
 local Tabs = {
 	Main = Window:AddTab("Main", "user"),
+	Inventory = Window:AddTab("Inventory Monitor", "monitor"),
 	["UI Settings"] = Window:AddTab("UI Settings", "settings"),
 }
 
 local MainGroup = Tabs.Main:AddLeftGroupbox("自动功能")
-local InfoGroup = Tabs.Main:AddRightGroupbox("商店实时库存")
+local GearGroup = Tabs.Main:AddRightGroupbox("道具购买")
+local SeedStockGroup = Tabs.Inventory:AddLeftGroupbox("种子实时库存")
+local GearStockGroup = Tabs.Inventory:AddRightGroupbox("道具实时库存")
 
-local SeedData = {
-    ["Carrot"] = "Carrot Seed", ["Corn"] = "Corn Seed", ["Onion"] = "Onion Seed",
-    ["Strawberry"] = "Strawberry Seed", ["Mushroom"] = "Mushroom Seed",
-    ["Tomato"] = "Tomato Seed", ["Beetroot"] = "Beetroot Seed", ["Apple"] = "Apple Seed",
-    ["Rose"] = "Rose Seed", ["Wheat"] = "Wheat Seed", ["Banana"] = "Banana Seed",
-    ["Plum"] = "Plum Seed", ["Potato"] = "Potato Seed", ["Cabbage"] = "Cabbage Seed", ["Cherry"] = "Cherry Seed"
+local SeedNames = {
+    "Carrot Seed", "Corn Seed", "Onion Seed", "Strawberry Seed", "Mushroom Seed",
+    "Tomato Seed", "Beetroot Seed", "Apple Seed", "Rose Seed", "Wheat Seed",
+    "Banana Seed", "Plum Seed", "Potato Seed", "Cabbage Seed", "Cherry Seed"
 }
 
-local BuyList, PlantList = {}, {}
-for k, v in pairs(SeedData) do table.insert(BuyList, v) table.insert(PlantList, k) end
+local GearNames = {
+    "Watering Can", "Basic Sprinkler", "Harvest Bell", "Turbo Sprinkler", "Favorite Tool", "Super Sprinkler"
+}
 
-local Labels = {}
-for _, v in ipairs(BuyList) do 
-    Labels[v] = InfoGroup:AddLabel(v .. ": 0") 
+local SeedLabels, GearLabels, NotifiedSeeds, NotifiedGears = {}, {}, {}, {}
+
+for _, v in ipairs(SeedNames) do 
+    SeedLabels[v] = SeedStockGroup:AddLabel(v .. ": 0") 
+    NotifiedSeeds[v] = false
+end
+
+for _, v in ipairs(GearNames) do
+    GearLabels[v] = GearStockGroup:AddLabel(v .. ": 0")
+    NotifiedGears[v] = false
+end
+
+local lp = game:GetService("Players").LocalPlayer
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local PurchaseRemote = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("PurchaseShopItem")
+
+if ReplicatedStorage.RemoteEvents:FindFirstChild("ShopRestocked") then
+    ReplicatedStorage.RemoteEvents.ShopRestocked.OnClientEvent:Connect(function()
+        for k, _ in pairs(NotifiedSeeds) do NotifiedSeeds[k] = false end
+        for k, _ in pairs(NotifiedGears) do NotifiedGears[k] = false end
+        Library:Notify("商店已刷新，所有库存已补回！", 3)
+    end)
 end
 
 task.spawn(function()
-    local PlayerGui = game:GetService("Players").LocalPlayer:WaitForChild("PlayerGui")
     while task.wait(0.5) do
-        local ScrollFrame = PlayerGui:FindFirstChild("SeedShop") and PlayerGui.SeedShop:FindFirstChild("Frame") and PlayerGui.SeedShop.Frame:FindFirstChild("ScrollingFrame")
-        if ScrollFrame then
-            for _, item in ipairs(ScrollFrame:GetChildren()) do
-                local mainInfo = item:FindFirstChild("MainInfo")
-                if mainInfo then
-                    local seedNameTag = mainInfo:FindFirstChild("SeedName")
-                    local stockTextTag = mainInfo:FindFirstChild("StockText")
-                    if seedNameTag and stockTextTag then
-                        local name = seedNameTag.Text
-                        local stockNum = string.match(stockTextTag.Text, "%d+") or "0"
-                        if Labels[name] then
-                            Labels[name]:SetText(name .. ": " .. stockNum)
-                        end
-                    end
+        local SeedScroll = lp.PlayerGui:FindFirstChild("SeedShop") and lp.PlayerGui.SeedShop.Frame:FindFirstChild("ScrollingFrame")
+        if SeedScroll then
+            for _, item in ipairs(SeedScroll:GetChildren()) do
+                local info = item:FindFirstChild("MainInfo")
+                if info and info:FindFirstChild("SeedName") then
+                    local name = info.SeedName.Text
+                    local stock = tonumber(string.match(info.StockText.Text, "%d+")) or 0
+                    if SeedLabels[name] then SeedLabels[name]:SetText(name .. ": " .. stock) end
+                end
+            end
+        end
+
+        local GearScroll = lp.PlayerGui:FindFirstChild("GearShop") and lp.PlayerGui.GearShop.Frame:FindFirstChild("ScrollingFrame")
+        if GearScroll then
+            for _, item in ipairs(GearScroll:GetChildren()) do
+                local info = item:FindFirstChild("MainInfo")
+                if info and (info:FindFirstChild("GearName") or info:FindFirstChild("SeedName")) then
+                    local label = info:FindFirstChild("GearName") or info:FindFirstChild("SeedName")
+                    local stock = tonumber(string.match(info.StockText.Text, "%d+")) or 0
+                    if GearLabels[label.Text] then GearLabels[label.Text]:SetText(label.Text .. ": " .. stock) end
                 end
             end
         end
     end
 end)
 
+local function handleAutoBuy(configName, shopType, notifiedTable, dropdownOption)
+    if _G[configName] then
+        local scrollName = shopType == "SeedShop" and "SeedShop" or "GearShop"
+        local Scroll = lp.PlayerGui:FindFirstChild(scrollName) and lp.PlayerGui[scrollName].Frame:FindFirstChild("ScrollingFrame")
+        if Scroll then
+            for itemName, isSelected in pairs(Library.Options[dropdownOption].Value) do
+                if isSelected and _G[configName] then
+                    local currentStock = -1
+                    for _, item in ipairs(Scroll:GetChildren()) do
+                        local info = item:FindFirstChild("MainInfo")
+                        if info then
+                            local label = info:FindFirstChild("SeedName") or info:FindFirstChild("GearName")
+                            if label and label.Text == itemName then
+                                currentStock = tonumber(string.match(info.StockText.Text, "%d+")) or 0
+                                break
+                            end
+                        end
+                    end
+                    if currentStock > 0 then
+                        PurchaseRemote:InvokeServer(shopType, itemName)
+                        notifiedTable[itemName] = false
+                        task.wait(Library.Options.ActionDelay.Value)
+                    elseif currentStock == 0 and not notifiedTable[itemName] then
+                        Library:Notify("【" .. itemName .. "】已售罄，等待刷新", 5)
+                        notifiedTable[itemName] = true
+                    end
+                end
+            end
+        end
+    end
+end
+
+task.spawn(function()
+    while task.wait() do
+        handleAutoBuy("AutoBuySelected", "SeedShop", NotifiedSeeds, "BuyDropdown")
+        handleAutoBuy("AutoBuyGear", "GearShop", NotifiedGears, "GearDropdown")
+    end
+end)
+
 MainGroup:AddToggle("AutoSell", {
-    Text = "自动出售所有物品",
+    Text = "自动出售全部",
     Default = false,
-    Callback = function(Value)
-        _G.AutoSell = Value
+    Callback = function(v) _G.AutoSell = v 
         task.spawn(function()
             while _G.AutoSell do
-                game:GetService("ReplicatedStorage").RemoteEvents.SellItems:InvokeServer("SellAll")
+                ReplicatedStorage.RemoteEvents.SellItems:InvokeServer("SellAll")
                 task.wait(Library.Options.ActionDelay.Value)
             end
         end)
     end
 })
 
-MainGroup:AddToggle("AutoBuy", {
-    Text = "自动购买选中种子",
-    Default = false,
-    Callback = function(Value)
-        _G.AutoBuy = Value
-        task.spawn(function()
-            while _G.AutoBuy do
-                for name, isSelected in pairs(Library.Options.BuyDropdown.Value) do
-                    if isSelected and _G.AutoBuy then
-                        game:GetService("ReplicatedStorage").RemoteEvents.PurchaseShopItem:InvokeServer("SeedShop", name)
-                        task.wait(math.max(Library.Options.ActionDelay.Value, 0.01))
-                    end
-                end
-                task.wait()
-            end
-        end)
-    end
-})
+MainGroup:AddToggle("AutoBuySelected", { Text = "自动购买种子", Default = false, Callback = function(v) _G.AutoBuySelected = v end })
+MainGroup:AddDropdown("BuyDropdown", { Values = SeedNames, Default = 1, Multi = true, Text = "选择购买种子" })
 
-MainGroup:AddDropdown("BuyDropdown", { Values = BuyList, Default = 1, Multi = true, Text = "选择购买种子" })
+GearGroup:AddToggle("AutoBuyGear", { Text = "自动购买道具", Default = false, Callback = function(v) _G.AutoBuyGear = v end })
+GearGroup:AddDropdown("GearDropdown", { Values = GearNames, Default = 1, Multi = true, Text = "选择购买道具" })
 
 MainGroup:AddToggle("AutoPlant", {
-    Text = "自动种植选中植物",
+    Text = "自动种植 (移动触发)",
     Default = false,
-    Callback = function(Value)
-        _G.AutoPlant = Value
+    Callback = function(v)
+        _G.AutoPlant = v
         task.spawn(function()
-            local pos = Vector3.new(417.4727783203125, 208.60179138183594, 349.9797058105469)
             while _G.AutoPlant do
-                for name, isSelected in pairs(Library.Options.PlantDropdown.Value) do
-                    if isSelected and _G.AutoPlant then
-                        game:GetService("ReplicatedStorage").RemoteEvents.PlantSeed:InvokeServer(name, pos)
-                        task.wait(math.max(Library.Options.ActionDelay.Value, 0.01))
+                local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+                if root and root.Velocity.Magnitude > 0.1 then
+                    local p = root.Position - Vector3.new(0, 3, 0)
+                    for fullName, enabled in pairs(Library.Options.PlantDropdown.Value) do
+                        if enabled and _G.AutoPlant then
+                            ReplicatedStorage.RemoteEvents.PlantSeed:InvokeServer(string.gsub(fullName, " Seed", ""), p)
+                        end
                     end
                 end
-                task.wait()
+                task.wait(math.max(Library.Options.ActionDelay.Value, 0.05))
+            end
+        end)
+    end
+})
+MainGroup:AddDropdown("PlantDropdown", { Values = SeedNames, Default = 1, Multi = true, Text = "选择种植植物" })
+
+MainGroup:AddToggle("AutoHarvest", {
+    Text = "通用收集",
+    Default = false,
+    Callback = function(v)
+        _G.AutoHarvest = v
+        task.spawn(function()
+            while _G.AutoHarvest do
+                local f = workspace:FindFirstChild("ClientPlants")
+                if f then
+                    for _, obj in ipairs(f:GetDescendants()) do
+                        if obj:IsA("ProximityPrompt") and obj.Enabled then
+                            fireproximityprompt(obj)
+                        end
+                    end
+                end
+                task.wait(0.1)
             end
         end)
     end
 })
 
-MainGroup:AddDropdown("PlantDropdown", { Values = PlantList, Default = 1, Multi = true, Text = "选择种植植物" })
+MainGroup:AddSlider("ActionDelay", { Text = "执行速度", Default = 0.3, Min = 0.05, Max = 1, Rounding = 2 })
 
-MainGroup:AddSlider("ActionDelay", {
-    Text = "延迟速度",
-    Default = 0.1, Min = 0, Max = 2, Rounding = 2, Compact = false,
-})
-
-local MenuGroup = Tabs["UI Settings"]:AddLeftGroupbox("Menu")
-MenuGroup:AddLabel("Menu bind"):AddKeyPicker("MenuKeybind", { Default = "RightShift", NoUI = true, Text = "Menu keybind" })
-MenuGroup:AddButton("Unload", function() Library:Unload() end)
-Library.ToggleKeybind = Library.Options.MenuKeybind 
-
+Library.ToggleKeybind = { Value = "RightShift" }
 SaveManager:SetLibrary(Library)
-SaveManager:IgnoreThemeSettings()
-SaveManager:SetIgnoreIndexes({ "MenuKeybind" })
 SaveManager:BuildConfigSection(Tabs["UI Settings"])
 ThemeManager:SetLibrary(Library)
 ThemeManager:ApplyToTab(Tabs["UI Settings"])
 
 Library:OnUnload(function()
-    _G.AutoSell = false
-    _G.AutoBuy = false
-    _G.AutoPlant = false
+    _G.AutoSell = false _G.AutoBuySelected = false _G.AutoBuyGear = false _G.AutoPlant = false _G.AutoHarvest = false
 end)
