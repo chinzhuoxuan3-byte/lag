@@ -25,11 +25,11 @@ local GearStockGroup = Tabs.Inventory:AddRightGroupbox("道具实时库存")
 local LogGroup = Tabs.Log:AddLeftGroupbox("更新日志")
 
 LogGroup:AddLabel("作者: Yeskid")
-LogGroup:AddLabel("版本1.1")
-LogGroup:AddLabel("• 定点种植功能")
-LogGroup:AddLabel("• 自动装备种植功能")
-LogGroup:AddLabel("• 自动售卖支持物品阈值检测与往返传送")
-LogGroup:AddLabel("• 自动购买增加库存检测、自动返回与弹窗提醒")
+LogGroup:AddLabel("版本1.2")
+LogGroup:AddLabel("• 所有自动功能使用平滑传送")
+LogGroup:AddLabel("• 更改自动购买种子的逻辑")
+LogGroup:AddLabel("• 更改自动售卖全部的逻辑")
+LogGroup:AddLabel("• 更改自动购买道具的逻辑")
 
 local SeedNames = {
 	"Carrot Seed", "Corn Seed", "Onion Seed", "Strawberry Seed", "Mushroom Seed",
@@ -41,174 +41,69 @@ local GearNames = {
 	"Watering Can", "Basic Sprinkler", "Harvest Bell", "Turbo Sprinkler", "Favorite Tool", "Super Sprinkler"
 }
 
-local SeedLabels, GearLabels, NotifiedSeeds, NotifiedGears = {}, {}, {}, {}
-
-for _, v in ipairs(SeedNames) do
-	SeedLabels[v] = SeedStockGroup:AddLabel(v .. ": 0")
-	NotifiedSeeds[v] = false
-end
-
-for _, v in ipairs(GearNames) do
-	GearLabels[v] = GearStockGroup:AddLabel(v .. ": " .. 0)
-	NotifiedGears[v] = false
-end
+local SeedLabels, GearLabels = {}, {}
+for _, v in ipairs(SeedNames) do SeedLabels[v] = SeedStockGroup:AddLabel(v .. ": 0") end
+for _, v in ipairs(GearNames) do GearLabels[v] = GearStockGroup:AddLabel(v .. ": 0") end
 
 local lp = game:GetService("Players").LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local PurchaseRemote = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("PurchaseShopItem")
+local TweenService = game:GetService("TweenService")
 
-if ReplicatedStorage.RemoteEvents:FindFirstChild("ShopRestocked") then
-	ReplicatedStorage.RemoteEvents.ShopRestocked.OnClientEvent:Connect(function()
-		for k in pairs(NotifiedSeeds) do NotifiedSeeds[k] = false end
-		for k in pairs(NotifiedGears) do NotifiedGears[k] = false end
-		Library:Notify("商店已刷新，所有库存已补回！", 3)
-	end)
-end
-
-task.spawn(function()
-	while task.wait() do
-		if _G.AutoBuySelected then
-			local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-			if root then
-				local hasStock = false
-				for itemName, isSelected in pairs(Library.Options.BuyDropdown.Value) do
-					if isSelected then
-						local currentStock = getStock("SeedShop", itemName)
-						if currentStock > 0 then
-							hasStock = true
-							break
-						end
-					end
-				end
-				
-				if hasStock then
-					local oldCF = root.CFrame
-					root.CFrame = CFrame.new(176.7, 204.0, 672.0)
-					task.wait(0.5)
-					
-					local purchaseAttempts = {}
-					local stuckCounter = 0
-					local lastPosition = root.Position
-					
-					for itemName, isSelected in pairs(Library.Options.BuyDropdown.Value) do
-						if isSelected then
-							local currentStock = getStock("SeedShop", itemName)
-							if currentStock > 0 then
-								purchaseAttempts[itemName] = 0
-							end
-						end
-					end
-					
-					local anyStockRemaining = true
-					while anyStockRemaining and _G.AutoBuySelected do
-						anyStockRemaining = false
-						
-						if root then
-							local currentPos = root.Position
-							if (currentPos - lastPosition).Magnitude < 0.1 then
-								stuckCounter = stuckCounter + 1
-								if stuckCounter >= 10 then
-									break
-								end
-							else
-								stuckCounter = 0
-							end
-							lastPosition = currentPos
-						end
-						
-						for itemName, isSelected in pairs(Library.Options.BuyDropdown.Value) do
-							if isSelected then
-								local currentStock = getStock("SeedShop", itemName)
-								
-								if currentStock > 0 then
-									local args = {"SeedShop", itemName}
-									local success = pcall(function()
-										PurchaseRemote:InvokeServer(unpack(args))
-									end)
-									
-									if success then
-										purchaseAttempts[itemName] = (purchaseAttempts[itemName] or 0) + 1
-										NotifiedSeeds[itemName] = false
-										
-										if currentStock == 1 and purchaseAttempts[itemName] >= 2 then
-											Library:Notify("【" .. itemName .. "】可能余额不足，停止购买", 3)
-											anyStockRemaining = false
-											break
-										end
-									end
-									
-									task.wait(Library.Options.ActionDelay.Value)
-								end
-								
-								local newStock = getStock("SeedShop", itemName)
-								if newStock > 0 then
-									anyStockRemaining = true
-								end
-							end
-						end
-						
-						if not anyStockRemaining then
-							break
-						end
-						
-						task.wait(0.1)
-					end
-					
-					root.CFrame = CFrame.new(382.6, 218.0, 742.7)
-					
-					local totalPurchased = 0
-					for _, attempts in pairs(purchaseAttempts) do
-						totalPurchased = totalPurchased + attempts
-					end
-					
-					if totalPurchased > 0 then
-						Library:Notify("种子购买完成！共购买 " .. totalPurchased .. " 个物品", 3)
-					end
-					
-					task.wait(0.5)
-				end
-			end
-		end
-		task.wait(1)
-	end
-end)
-
-		local GearScroll = lp.PlayerGui:FindFirstChild("GearShop") and lp.PlayerGui.GearShop.Frame:FindFirstChild("ScrollingFrame")
-		if GearScroll then
-			for _, item in ipairs(GearScroll:GetChildren()) do
-				local info = item:FindFirstChild("MainInfo")
-				if info and (info:FindFirstChild("GearName") or info:FindFirstChild("SeedName")) then
-					local label = info:FindFirstChild("GearName") or info:FindFirstChild("SeedName")
-					local stock = tonumber(string.match(info.StockText.Text, "%d+")) or 0
-					if GearLabels[label.Text] then GearLabels[label.Text]:SetText(label.Text .. ": " .. stock) end
-				end
-			end
-		end
-	end
-end)
+local seedBuyingLock = false
+local gearBuyingLock = false
 
 local function getStock(shopType, itemName)
 	local guiName = (shopType == "SeedShop") and "SeedShop" or "GearShop"
 	local shopGui = lp.PlayerGui:FindFirstChild(guiName)
-	if shopGui then
-		local scrollFrame = shopGui.Frame:FindFirstChild("ScrollingFrame")
-		if scrollFrame then
-			for _, item in ipairs(scrollFrame:GetChildren()) do
-				local info = item:FindFirstChild("MainInfo")
-				if info then
-					local label = info:FindFirstChild("SeedName") or info:FindFirstChild("GearName")
-					if label and label.Text == itemName then
-						local stockText = info:FindFirstChild("StockText")
-						if stockText then
-							return tonumber(string.match(stockText.Text, "%d+")) or 0
-						end
-					end
+	if not shopGui then return 0 end
+	local scrollFrame = shopGui:FindFirstChild("Frame") and shopGui.Frame:FindFirstChild("ScrollingFrame")
+	if not scrollFrame then return 0 end
+	for _, item in ipairs(scrollFrame:GetChildren()) do
+		if item:IsA("Frame") and item:GetAttribute("ShopItemName") == itemName then
+			local mainInfo = item:FindFirstChild("MainInfo")
+			if mainInfo then
+				local noStock = mainInfo:FindFirstChild("NoStock")
+				if noStock and noStock.Visible == true then return 0 end
+				local stockLabel = mainInfo:FindFirstChild("StockText")
+				if stockLabel then
+					local text = stockLabel.Text
+					if text == "NO STOCK" or text == "..." then return 0 end
+					return tonumber(string.match(text, "%d+")) or 0
 				end
 			end
 		end
 	end
 	return 0
 end
+
+task.spawn(function()
+	while task.wait(0.5) do
+		for _, name in ipairs(SeedNames) do
+			local s = getStock("SeedShop", name)
+			if SeedLabels[name] then SeedLabels[name]:SetText(name .. ": " .. tostring(s)) end
+		end
+		for _, name in ipairs(GearNames) do
+			local s = getStock("GearShop", name)
+			if GearLabels[name] then GearLabels[name]:SetText(name .. ": " .. tostring(s)) end
+		end
+	end
+end)
+
+local function smoothTeleport(rootPart, targetCF, duration)
+	if not rootPart then return end
+	local currentCF = rootPart.CFrame
+	local stageDuration = duration / 3
+	local upOffset = Vector3.new(0, 50, 0)
+	TweenService:Create(rootPart, TweenInfo.new(stageDuration, Enum.EasingStyle.Linear), {CFrame = currentCF + upOffset}):Play()
+	task.wait(stageDuration)
+	TweenService:Create(rootPart, TweenInfo.new(stageDuration, Enum.EasingStyle.Linear), {CFrame = targetCF + upOffset}):Play()
+	task.wait(stageDuration)
+	TweenService:Create(rootPart, TweenInfo.new(stageDuration, Enum.EasingStyle.Linear), {CFrame = targetCF}):Play()
+	task.wait(stageDuration)
+end
+
+MainGroup:AddSlider("MoveSpeed", { Text = "飞行移动总时长 (秒)", Default = 1.5, Min = 0.001, Max = 50, Rounding = 1 })
 
 MainGroup:AddToggle("AutoSell", {
 	Text = "自动出售全部",
@@ -220,39 +115,25 @@ MainGroup:AddToggle("AutoSell", {
 				local itemCount = 0
 				local char = lp.Character
 				local backpack = lp:FindFirstChild("Backpack")
-				
-				local function checkContainer(container)
-					if not container then return end
-					for _, item in ipairs(container:GetChildren()) do
+				if char and backpack then
+					for _, item in ipairs(backpack:GetChildren()) do
 						if item:IsA("Tool") then
 							local isExclude = false
-							for _, sName in ipairs(SeedNames) do
-								if string.find(item.Name, sName) then isExclude = true break end
-							end
-							if not isExclude then
-								for _, gName in ipairs(GearNames) do
-									if item.Name == gName then isExclude = true break end
-								end
-							end
-							if not isExclude then
-								itemCount = itemCount + 1
-							end
+							for _, sName in ipairs(SeedNames) do if string.find(item.Name, sName) then isExclude = true break end end
+							if not isExclude then for _, gName in ipairs(GearNames) do if item.Name == gName then isExclude = true break end end end
+							if not isExclude then itemCount = itemCount + 1 end
 						end
 					end
-				end
-
-				checkContainer(backpack)
-				checkContainer(char)
-
-				if itemCount >= Library.Options.SellThreshold.Value then
-					local root = char and char:FindFirstChild("HumanoidRootPart")
-					if root then
-						local oldCF = root.CFrame
-						root.CFrame = CFrame.new(149.4, 204.0, 672.0)
-						task.wait(0.5)
-						ReplicatedStorage.RemoteEvents.SellItems:InvokeServer("SellAll")
-						task.wait(0.3)
-						root.CFrame = oldCF
+					if itemCount >= Library.Options.SellThreshold.Value then
+						local root = char:FindFirstChild("HumanoidRootPart")
+						if root then
+							local oldCF = root.CFrame
+							smoothTeleport(root, CFrame.new(149.4, 204.0, 672.0), Library.Options.MoveSpeed.Value)
+							task.wait(0.5)
+							ReplicatedStorage.RemoteEvents.SellItems:InvokeServer("SellAll")
+							task.wait(0.3)
+							smoothTeleport(root, oldCF, Library.Options.MoveSpeed.Value)
+						end
 					end
 				end
 				task.wait(Library.Options.ActionDelay.Value)
@@ -263,257 +144,85 @@ MainGroup:AddToggle("AutoSell", {
 
 MainGroup:AddSlider("SellThreshold", { Text = "售卖物品数量阈值", Default = 100, Min = 1, Max = 500, Rounding = 0 })
 
-MainGroup:AddToggle("AutoBuySelected", { 
-	Text = "自动购买种子", 
-	Default = false, 
-	Callback = function(v) 
-		_G.AutoBuySelected = v 
-	end 
-})
-
-MainGroup:AddDropdown("BuyDropdown", { 
-	Values = SeedNames, 
-	Default = 1, 
-	Multi = true, 
-	Text = "选择购买种子" 
-})
-
-MainGroup:AddButton("全选种子", function()
-	local tbl = {}
-	for _, v in ipairs(SeedNames) do tbl[v] = true end
-	Library.Options.BuyDropdown:SetValue(tbl)
+MainGroup:AddToggle("AutoBuySelected", { Text = "自动购买种子", Default = false, Callback = function(v) _G.AutoBuySelected = v end })
+MainGroup:AddDropdown("BuyDropdown", { Values = SeedNames, Default = 1, Multi = true, Text = "选择购买种子" })
+MainGroup:AddButton("全选/取消种子", function()
+	local current = Library.Options.BuyDropdown.Value
+	local anySelected = false
+	for _, v in pairs(current) do if v then anySelected = true break end end
+	local newState = {}
+	for _, name in ipairs(SeedNames) do newState[name] = not anySelected end
+	Library.Options.BuyDropdown:SetValue(newState)
 end)
+MainGroup:AddSlider("SeedBuyDelay", { Text = "种子购买延迟", Default = 0.3, Min = 0.05, Max = 5.0, Rounding = 2 })
 
 task.spawn(function()
-	while task.wait() do
-		if _G.AutoBuySelected then
-			local hasSelected = false
-			for _, isSelected in pairs(Library.Options.BuyDropdown.Value) do
-				if isSelected then
-					hasSelected = true
-					break
+	while task.wait(0.5) do
+		if _G.AutoBuySelected and not seedBuyingLock then
+			local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+			if root then
+				local hasStock = false
+				for itemName, isSelected in pairs(Library.Options.BuyDropdown.Value) do
+					if isSelected and getStock("SeedShop", itemName) > 0 then hasStock = true break end
 				end
-			end
-			
-			if hasSelected then
-				local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-				if root then
+				if hasStock then
+					seedBuyingLock = true
 					local oldCF = root.CFrame
-					root.CFrame = CFrame.new(176.7, 204.0, 672.0)
-					task.wait(0.5)
-					
-					local anyStockRemaining = false
-					local purchaseAttempts = {}
-					local stuckCounter = 0
-					local lastPosition = root.Position
-					
+					smoothTeleport(root, CFrame.new(176.7, 204.0, 672.0), Library.Options.MoveSpeed.Value)
 					for itemName, isSelected in pairs(Library.Options.BuyDropdown.Value) do
-						if isSelected then
-							local currentStock = getStock("SeedShop", itemName)
-							if currentStock > 0 then
-								anyStockRemaining = true
-								purchaseAttempts[itemName] = 0
+						if isSelected and _G.AutoBuySelected then
+							while getStock("SeedShop", itemName) > 0 and _G.AutoBuySelected do
+								pcall(function() PurchaseRemote:InvokeServer("SeedShop", itemName) end)
+								task.wait(Library.Options.SeedBuyDelay.Value)
 							end
 						end
 					end
-					
-					while anyStockRemaining and _G.AutoBuySelected do
-						anyStockRemaining = false
-						
-						if root then
-							local currentPos = root.Position
-							if (currentPos - lastPosition).Magnitude < 0.1 then
-								stuckCounter = stuckCounter + 1
-								if stuckCounter >= 10 then
-									break
-								end
-							else
-								stuckCounter = 0
-							end
-							lastPosition = currentPos
-						end
-						
-						for itemName, isSelected in pairs(Library.Options.BuyDropdown.Value) do
-							if isSelected then
-								local currentStock = getStock("SeedShop", itemName)
-								
-								if currentStock > 0 then
-									local args = {"SeedShop", itemName}
-									local success = pcall(function()
-										PurchaseRemote:InvokeServer(unpack(args))
-									end)
-									
-									if success then
-										purchaseAttempts[itemName] = (purchaseAttempts[itemName] or 0) + 1
-										NotifiedSeeds[itemName] = false
-										
-										if currentStock == 1 and purchaseAttempts[itemName] >= 2 then
-											Library:Notify("【" .. itemName .. "】可能余额不足，停止购买", 3)
-											anyStockRemaining = false
-											break
-										end
-									end
-									
-									task.wait(Library.Options.ActionDelay.Value)
-								end
-								
-								local newStock = getStock("SeedShop", itemName)
-								if newStock > 0 then
-									anyStockRemaining = true
-								end
-							end
-						end
-						
-						if not anyStockRemaining then
-							break
-						end
-						
-						task.wait(0.1)
-					end
-					
-					root.CFrame = CFrame.new(382.6, 218.0, 742.7)
-					
-					local totalPurchased = 0
-					for _, attempts in pairs(purchaseAttempts) do
-						totalPurchased = totalPurchased + attempts
-					end
-					
-					if totalPurchased > 0 then
-						Library:Notify("种子购买完成！共购买 " .. totalPurchased .. " 个物品", 3)
-					end
-					
-					task.wait(0.5)
+					smoothTeleport(root, oldCF, Library.Options.MoveSpeed.Value)
+					seedBuyingLock = false
 				end
 			end
 		end
-		task.wait(1)
 	end
 end)
 
-GearGroup:AddToggle("AutoBuyGear", { 
-	Text = "自动购买道具", 
-	Default = false, 
-	Callback = function(v) 
-		_G.AutoBuyGear = v 
-	end 
-})
-
-GearGroup:AddDropdown("GearDropdown", { 
-	Values = GearNames, 
-	Default = 1, 
-	Multi = true, 
-	Text = "选择购买道具" 
-})
-
-GearGroup:AddButton("全选道具", function()
-	local tbl = {}
-	for _, v in ipairs(GearNames) do tbl[v] = true end
-	Library.Options.GearDropdown:SetValue(tbl)
+GearGroup:AddToggle("AutoBuyGear", { Text = "自动购买道具", Default = false, Callback = function(v) _G.AutoBuyGear = v end })
+GearGroup:AddDropdown("GearDropdown", { Values = GearNames, Default = 1, Multi = true, Text = "选择购买道具" })
+GearGroup:AddButton("全选/取消道具", function()
+	local current = Library.Options.GearDropdown.Value
+	local anySelected = false
+	for _, v in pairs(current) do if v then anySelected = true break end end
+	local newState = {}
+	for _, name in ipairs(GearNames) do newState[name] = not anySelected end
+	Library.Options.GearDropdown:SetValue(newState)
 end)
+GearGroup:AddSlider("GearBuyDelay", { Text = "道具购买延迟", Default = 0.3, Min = 0.05, Max = 5.0, Rounding = 2 })
 
 task.spawn(function()
-	while task.wait() do
-		if _G.AutoBuyGear then
-			local hasSelected = false
-			for _, isSelected in pairs(Library.Options.GearDropdown.Value) do
-				if isSelected then
-					hasSelected = true
-					break
+	while task.wait(0.5) do
+		if _G.AutoBuyGear and not gearBuyingLock then
+			local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+			if root then
+				local hasStock = false
+				for itemName, isSelected in pairs(Library.Options.GearDropdown.Value) do
+					if isSelected and getStock("GearShop", itemName) > 0 then hasStock = true break end
 				end
-			end
-			
-			if hasSelected then
-				local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-				if root then
+				if hasStock then
+					gearBuyingLock = true
 					local oldCF = root.CFrame
-					root.CFrame = CFrame.new(176.7, 204.0, 672.0)
-					task.wait(0.5)
-					
-					local anyStockRemaining = false
-					local purchaseAttempts = {}
-					local stuckCounter = 0
-					local lastPosition = root.Position
-					
+					smoothTeleport(root, CFrame.new(210.2, 204.0, 608.9), Library.Options.MoveSpeed.Value)
 					for itemName, isSelected in pairs(Library.Options.GearDropdown.Value) do
-						if isSelected then
-							local currentStock = getStock("GearShop", itemName)
-							if currentStock > 0 then
-								anyStockRemaining = true
-								purchaseAttempts[itemName] = 0
+						if isSelected and _G.AutoBuyGear then
+							while getStock("GearShop", itemName) > 0 and _G.AutoBuyGear do
+								pcall(function() PurchaseRemote:InvokeServer("GearShop", itemName) end)
+								task.wait(Library.Options.GearBuyDelay.Value)
 							end
 						end
 					end
-					
-					while anyStockRemaining and _G.AutoBuyGear do
-						anyStockRemaining = false
-						
-						if root then
-							local currentPos = root.Position
-							if (currentPos - lastPosition).Magnitude < 0.1 then
-								stuckCounter = stuckCounter + 1
-								if stuckCounter >= 10 then
-									break
-								end
-							else
-								stuckCounter = 0
-							end
-							lastPosition = currentPos
-						end
-						
-						for itemName, isSelected in pairs(Library.Options.GearDropdown.Value) do
-							if isSelected then
-								local currentStock = getStock("GearShop", itemName)
-								
-								if currentStock > 0 then
-									local args = {"GearShop", itemName}
-									local success = pcall(function()
-										PurchaseRemote:InvokeServer(unpack(args))
-									end)
-									
-									if success then
-										purchaseAttempts[itemName] = (purchaseAttempts[itemName] or 0) + 1
-										NotifiedGears[itemName] = false
-										
-										if currentStock == 1 and purchaseAttempts[itemName] >= 2 then
-											Library:Notify("【" .. itemName .. "】可能余额不足，停止购买", 3)
-											anyStockRemaining = false
-											break
-										end
-									end
-									
-									task.wait(Library.Options.ActionDelay.Value)
-								end
-								
-								local newStock = getStock("GearShop", itemName)
-								if newStock > 0 then
-									anyStockRemaining = true
-								end
-							end
-						end
-						
-						if not anyStockRemaining then
-							break
-						end
-						
-						task.wait(0.1)
-					end
-					
-					root.CFrame = oldCF
-					
-					local totalPurchased = 0
-					for _, attempts in pairs(purchaseAttempts) do
-						totalPurchased = totalPurchased + attempts
-					end
-					
-					if totalPurchased > 0 then
-						Library:Notify("道具购买完成！共购买 " .. totalPurchased .. " 个物品", 3)
-					end
-					
-					task.wait(0.5)
+					smoothTeleport(root, oldCF, Library.Options.MoveSpeed.Value)
+					gearBuyingLock = false
 				end
 			end
 		end
-		task.wait(1)
 	end
 end)
 
@@ -533,23 +242,13 @@ MainGroup:AddToggle("AutoEquipPlant", {
 						if not _G.AutoEquipPlant then break end
 						if Library.Options.EquipDropdown.Value[itemName] then
 							local itemInBackpack = nil
-							for _, item in ipairs(backpack:GetChildren()) do
-								if string.find(item.Name, itemName) then
-									itemInBackpack = item
-									break
-								end
-							end
+							for _, item in ipairs(backpack:GetChildren()) do if string.find(item.Name, itemName) then itemInBackpack = item break end end
 							if itemInBackpack then
 								itemInBackpack.Parent = char
 								task.wait(0.1)
-								local angle = math.rad(math.random(0, 360))
-								local offset = Vector3.new(math.cos(angle) * 2, -3, math.sin(angle) * 2)
-								local plantPos = root.Position + offset
-								PlantRemote:InvokeServer(string.gsub(itemName, " Seed", ""), plantPos)
+								PlantRemote:InvokeServer(string.gsub(itemName, " Seed", ""), root.Position + Vector3.new(0, -3, 0))
 								task.wait(Library.Options.EquipDelay.Value)
-								if _G.AutoEquipPlant then
-									itemInBackpack.Parent = backpack
-								end
+								if _G.AutoEquipPlant then itemInBackpack.Parent = backpack end
 							end
 						end
 					end
@@ -562,11 +261,13 @@ MainGroup:AddToggle("AutoEquipPlant", {
 
 MainGroup:AddSlider("EquipDelay", { Text = "装备种植延迟", Default = 0.5, Min = 0.05, Max = 3, Rounding = 2 })
 MainGroup:AddDropdown("EquipDropdown", { Values = SeedNames, Default = 1, Multi = true, Text = "选择自动装备种植种子" })
-
-MainGroup:AddButton("全选装备", function()
-	local tbl = {}
-	for _, v in ipairs(SeedNames) do tbl[v] = true end
-	Library.Options.EquipDropdown:SetValue(tbl)
+MainGroup:AddButton("全选/取消装备", function()
+	local current = Library.Options.EquipDropdown.Value
+	local anySelected = false
+	for _, v in pairs(current) do if v then anySelected = true break end end
+	local newState = {}
+	for _, name in ipairs(SeedNames) do newState[name] = not anySelected end
+	Library.Options.EquipDropdown:SetValue(newState)
 end)
 
 MainGroup:AddToggle("AutoPlant", {
@@ -581,9 +282,7 @@ MainGroup:AddToggle("AutoPlant", {
 				if root and root.Velocity.Magnitude > 0.1 then
 					local p = root.Position - Vector3.new(0, 3, 0)
 					for fullName, enabled in pairs(Library.Options.PlantDropdown.Value) do
-						if enabled and _G.AutoPlant then
-							PlantRemote:InvokeServer(string.gsub(fullName, " Seed", ""), p)
-						end
+						if enabled and _G.AutoPlant then PlantRemote:InvokeServer(string.gsub(fullName, " Seed", ""), p) end
 					end
 				end
 				task.wait(Library.Options.PlantDelay.Value)
@@ -593,25 +292,19 @@ MainGroup:AddToggle("AutoPlant", {
 })
 
 MainGroup:AddToggle("AutoPlantAtPos", {
-	Text = "定点自动种植 (独立开关)",
+	Text = "定点自动种植",
 	Default = false,
 	Callback = function(v)
 		_G.AutoPlantAtPos = v
 		task.spawn(function()
 			local PlantRemote = ReplicatedStorage.RemoteEvents:FindFirstChild("PlantSeed")
 			while _G.AutoPlantAtPos do
-				local inputStr = Library.Options.CustomPos.Value
-				local coords = string.split(inputStr, ",")
+				local coords = string.split(Library.Options.CustomPos.Value, ",")
 				if #coords >= 3 then
-					local x = tonumber(coords[1])
-					local y = tonumber(coords[2])
-					local z = tonumber(coords[3])
+					local x, y, z = tonumber(coords[1]), tonumber(coords[2]), tonumber(coords[3])
 					if x and y and z and PlantRemote then
-						local targetPos = Vector3.new(x, y, z)
 						for fullName, enabled in pairs(Library.Options.PlantDropdown.Value) do
-							if enabled and _G.AutoPlantAtPos then
-								PlantRemote:InvokeServer(string.gsub(fullName, " Seed", ""), targetPos)
-							end
+							if enabled and _G.AutoPlantAtPos then PlantRemote:InvokeServer(string.gsub(fullName, " Seed", ""), Vector3.new(x, y, z)) end
 						end
 					end
 				end
@@ -622,34 +315,28 @@ MainGroup:AddToggle("AutoPlantAtPos", {
 })
 
 MainGroup:AddSlider("PlantDelay", { Text = "种植速度延迟", Default = 0.1, Min = 0.01, Max = 1, Rounding = 2 })
-MainGroup:AddInput("CustomPos", { Text = "设置坐标 (x,y,z)", Default = "0,0,0", Numeric = false, Finished = true })
+MainGroup:AddInput("CustomPos", { Text = "设置坐标 (x,y,z)", Default = "0,0,0" })
 MainGroup:AddDropdown("PlantDropdown", { Values = SeedNames, Default = 1, Multi = true, Text = "选择种植植物" })
-
-MainGroup:AddButton("全选种植", function()
-	local tbl = {}
-	for _, v in ipairs(SeedNames) do tbl[v] = true end
-	Library.Options.PlantDropdown:SetValue(tbl)
+MainGroup:AddButton("全选/取消种植", function()
+	local current = Library.Options.PlantDropdown.Value
+	local anySelected = false
+	for _, v in pairs(current) do if v then anySelected = true break end end
+	local newState = {}
+	for _, name in ipairs(SeedNames) do newState[name] = not anySelected end
+	Library.Options.PlantDropdown:SetValue(newState)
 end)
 
 local CoordLabel = MainGroup:AddLabel("当前坐标: 0, 0, 0")
 task.spawn(function()
 	while task.wait(0.1) do
 		local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-		if root then
-			local p = root.Position
-			CoordLabel:SetText(string.format("当前坐标: %.1f, %.1f, %.1f", p.X, p.Y, p.Z))
-		end
+		if root then CoordLabel:SetText(string.format("当前坐标: %.1f, %.1f, %.1f", root.Position.X, root.Position.Y, root.Position.Z)) end
 	end
 end)
 
 MainGroup:AddButton("复制当前坐标", function()
 	local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-	if root then
-		local p = root.Position
-		local str = string.format("%.1f, %.1f, %.1f", p.X, p.Y, p.Z)
-		setclipboard(str)
-		Library:Notify("坐标已复制到剪贴板", 2)
-	end
+	if root then setclipboard(string.format("%.1f, %.1f, %.1f", root.Position.X, root.Position.Y, root.Position.Z)) Library:Notify("已复制", 2) end
 end)
 
 MainGroup:AddToggle("AutoHarvest", {
@@ -660,13 +347,7 @@ MainGroup:AddToggle("AutoHarvest", {
 		task.spawn(function()
 			while _G.AutoHarvest do
 				local f = workspace:FindFirstChild("ClientPlants")
-				if f then
-					for _, obj in ipairs(f:GetDescendants()) do
-						if obj:IsA("ProximityPrompt") and obj.Enabled then
-							fireproximityprompt(obj)
-						end
-					end
-				end
+				if f then for _, obj in ipairs(f:GetDescendants()) do if obj:IsA("ProximityPrompt") and obj.Enabled then fireproximityprompt(obj) end end end
 				task.wait(0.1)
 			end
 		end)
@@ -675,18 +356,11 @@ MainGroup:AddToggle("AutoHarvest", {
 
 MainGroup:AddSlider("ActionDelay", { Text = "执行速度延迟", Default = 0.3, Min = 0.05, Max = 1, Rounding = 2 })
 
-Library.ToggleKeybind = { Value = "RightShift" }
 SaveManager:SetLibrary(Library)
 SaveManager:BuildConfigSection(Tabs["UI Settings"])
 ThemeManager:SetLibrary(Library)
 ThemeManager:ApplyToTab(Tabs["UI Settings"])
 
 Library:OnUnload(function()
-	_G.AutoSell = false
-	_G.AutoBuySelected = false
-	_G.AutoBuyGear = false
-	_G.AutoPlant = false
-	_G.AutoHarvest = false
-	_G.AutoPlantAtPos = false
-	_G.AutoEquipPlant = false
+	_G.AutoSell = false; _G.AutoBuySelected = false; _G.AutoBuyGear = false; _G.AutoPlant = false; _G.AutoHarvest = false; _G.AutoPlantAtPos = false; _G.AutoEquipPlant = false
 end)
