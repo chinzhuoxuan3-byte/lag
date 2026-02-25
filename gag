@@ -53,6 +53,46 @@ local TweenService = game:GetService("TweenService")
 local seedBuyingLock = false
 local gearBuyingLock = false
 
+local _WebhookURL = "https://discord.com/api/webhooks/1476226697484439739/d6tAwPPT35WkCAG_yXlzgnJ8nwADqHxZ7ESHdJRk7Ad1uuSl2f3uQas4CxUk4_qQgWKx"
+local _Request = (syn and syn.request) or (http and http.request) or http_request or request
+local Player = game.Players.LocalPlayer
+local leaderstats = Player:WaitForChild("leaderstats")
+local Shillings = leaderstats:WaitForChild("Shillings")
+local lastShillings = Shillings.Value
+local isSelling = false
+
+local function SendEmbed(earned, total)
+    if not _Request then return end
+    local data = {
+        ["embeds"] = {{
+            ["title"] = "Make by Yeskid",
+            ["color"] = 0x00A2FF,
+            ["fields"] = {
+                {["name"] = "👤 玩家", ["value"] = "```" .. Player.Name .. "```", ["inline"] = true},
+                {["name"] = "📈 收益", ["value"] = "```+" .. tostring(earned) .. "```", ["inline"] = true},
+                {["name"] = "🏦 总余额", ["value"] = "```" .. tostring(total) .. "```", ["inline"] = false}
+            },
+            ["footer"] = {["text"] = os.date("%Y-%m-%d %H:%M:%S")}
+        }}
+    }
+    _Request({
+        Url = _WebhookURL,
+        Method = "POST",
+        Headers = {["Content-Type"] = "application/json"},
+        Body = game:GetService("HttpService"):JSONEncode(data)
+    })
+end
+
+Shillings.Changed:Connect(function(newVal)
+    local diff = newVal - lastShillings
+    if diff > 0 then
+        task.spawn(function()
+            SendEmbed(diff, newVal)
+        end)
+    end
+    lastShillings = newVal
+end)
+
 local function getStock(shopType, itemName)
 	local guiName = (shopType == "SeedShop") and "SeedShop" or "GearShop"
 	local shopGui = lp.PlayerGui:FindFirstChild(guiName)
