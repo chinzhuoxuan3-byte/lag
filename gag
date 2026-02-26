@@ -6,7 +6,7 @@ local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
 local Window = Library:CreateWindow({
 	Title = "Yeskid Hub",
 	Footer = "欢迎使用Yeskid Hub",
-	Icon = 9,
+	Icon = 7136858729,
 	NotifySide = "Right",
 	ShowCustomCursor = true,
 })
@@ -18,11 +18,15 @@ local Tabs = {
 	["UI Settings"] = Window:AddTab("UI Settings", "settings"),
 }
 
-local MainGroup = Tabs.Main:AddLeftGroupbox("自动功能")
-local GearGroup = Tabs.Main:AddRightGroupbox("道具购买")
-local SeedStockGroup = Tabs.Inventory:AddLeftGroupbox("种子实时库存")
-local GearStockGroup = Tabs.Inventory:AddRightGroupbox("道具实时库存")
-local LogGroup = Tabs.Log:AddLeftGroupbox("更新日志")
+local SellGroup = Tabs.Main:AddLeftGroupbox("自动出售", "dollar-sign")
+local SeedBuyGroup = Tabs.Main:AddLeftGroupbox("自动购买种子", "shopping-cart")
+local PlantGroup = Tabs.Main:AddLeftGroupbox("自动种植", "sprout")
+local HarvestGroup = Tabs.Main:AddLeftGroupbox("自动收集", "package")
+local GearGroup = Tabs.Main:AddRightGroupbox("道具购买", "tool")
+local EquipGroup = Tabs.Main:AddRightGroupbox("装备种植", "anchor")
+local SeedStockGroup = Tabs.Inventory:AddLeftGroupbox("种子实时库存", "layers")
+local GearStockGroup = Tabs.Inventory:AddRightGroupbox("道具实时库存", "box")
+local LogGroup = Tabs.Log:AddLeftGroupbox("更新日志", "file-text")
 
 LogGroup:AddLabel("作者: Yeskid")
 LogGroup:AddLabel("版本1.2")
@@ -143,9 +147,10 @@ local function smoothTeleport(rootPart, targetCF, duration)
 	task.wait(stageDuration)
 end
 
-MainGroup:AddSlider("MoveSpeed", { Text = "飞行移动总时长 (秒)", Default = 1.5, Min = 0.001, Max = 50, Rounding = 1 })
-
-MainGroup:AddToggle("AutoSell", {
+SellGroup:AddSlider("MoveSpeed", { Text = "飞行移动总时长 (秒)", Default = 1.5, Min = 0.001, Max = 50, Rounding = 1 })
+SellGroup:AddSlider("SellThreshold", { Text = "售卖物品数量阈值", Default = 100, Min = 1, Max = 500, Rounding = 0 })
+SellGroup:AddSlider("ActionDelay", { Text = "执行速度延迟", Default = 0.3, Min = 0.05, Max = 1, Rounding = 2 })
+SellGroup:AddToggle("AutoSell", {
 	Text = "自动出售全部",
 	Default = false,
 	Callback = function(v)
@@ -182,11 +187,9 @@ MainGroup:AddToggle("AutoSell", {
 	end
 })
 
-MainGroup:AddSlider("SellThreshold", { Text = "售卖物品数量阈值", Default = 100, Min = 1, Max = 500, Rounding = 0 })
-
-MainGroup:AddToggle("AutoBuySelected", { Text = "自动购买种子", Default = false, Callback = function(v) _G.AutoBuySelected = v end })
-MainGroup:AddDropdown("BuyDropdown", { Values = SeedNames, Default = 1, Multi = true, Text = "选择购买种子" })
-MainGroup:AddButton("全选/取消种子", function()
+SeedBuyGroup:AddToggle("AutoBuySelected", { Text = "自动购买种子", Default = false, Callback = function(v) _G.AutoBuySelected = v end })
+SeedBuyGroup:AddDropdown("BuyDropdown", { Values = SeedNames, Default = 1, Multi = true, Text = "选择购买种子" })
+SeedBuyGroup:AddButton("全选/取消种子", function()
 	local current = Library.Options.BuyDropdown.Value
 	local anySelected = false
 	for _, v in pairs(current) do if v then anySelected = true break end end
@@ -194,7 +197,7 @@ MainGroup:AddButton("全选/取消种子", function()
 	for _, name in ipairs(SeedNames) do newState[name] = not anySelected end
 	Library.Options.BuyDropdown:SetValue(newState)
 end)
-MainGroup:AddSlider("SeedBuyDelay", { Text = "种子购买延迟", Default = 0.3, Min = 0.05, Max = 5.0, Rounding = 2 })
+SeedBuyGroup:AddSlider("SeedBuyDelay", { Text = "种子购买延迟", Default = 0.3, Min = 0.05, Max = 5.0, Rounding = 2 })
 
 task.spawn(function()
 	while task.wait(0.5) do
@@ -224,6 +227,90 @@ task.spawn(function()
 		end
 	end
 end)
+
+PlantGroup:AddToggle("AutoPlant", {
+	Text = "自动种植 (移动触发)",
+	Default = false,
+	Callback = function(v)
+		_G.AutoPlant = v
+		task.spawn(function()
+			local PlantRemote = ReplicatedStorage.RemoteEvents.PlantSeed
+			while _G.AutoPlant do
+				local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+				if root and root.Velocity.Magnitude > 0.1 then
+					local p = root.Position - Vector3.new(0, 3, 0)
+					for fullName, enabled in pairs(Library.Options.PlantDropdown.Value) do
+						if enabled and _G.AutoPlant then PlantRemote:InvokeServer(string.gsub(fullName, " Seed", ""), p) end
+					end
+				end
+				task.wait(Library.Options.PlantDelay.Value)
+			end
+		end)
+	end
+})
+
+PlantGroup:AddToggle("AutoPlantAtPos", {
+	Text = "定点自动种植",
+	Default = false,
+	Callback = function(v)
+		_G.AutoPlantAtPos = v
+		task.spawn(function()
+			local PlantRemote = ReplicatedStorage.RemoteEvents:FindFirstChild("PlantSeed")
+			while _G.AutoPlantAtPos do
+				local coords = string.split(Library.Options.CustomPos.Value, ",")
+				if #coords >= 3 then
+					local x, y, z = tonumber(coords[1]), tonumber(coords[2]), tonumber(coords[3])
+					if x and y and z and PlantRemote then
+						for fullName, enabled in pairs(Library.Options.PlantDropdown.Value) do
+							if enabled and _G.AutoPlantAtPos then PlantRemote:InvokeServer(string.gsub(fullName, " Seed", ""), Vector3.new(x, y, z)) end
+						end
+					end
+				end
+				task.wait(Library.Options.PlantDelay.Value)
+			end
+		end)
+	end
+})
+
+PlantGroup:AddSlider("PlantDelay", { Text = "种植速度延迟", Default = 0.1, Min = 0.01, Max = 1, Rounding = 2 })
+PlantGroup:AddInput("CustomPos", { Text = "设置坐标 (x,y,z)", Default = "0,0,0" })
+PlantGroup:AddDropdown("PlantDropdown", { Values = SeedNames, Default = 1, Multi = true, Text = "选择种植植物" })
+PlantGroup:AddButton("全选/取消种植", function()
+	local current = Library.Options.PlantDropdown.Value
+	local anySelected = false
+	for _, v in pairs(current) do if v then anySelected = true break end end
+	local newState = {}
+	for _, name in ipairs(SeedNames) do newState[name] = not anySelected end
+	Library.Options.PlantDropdown:SetValue(newState)
+end)
+
+local CoordLabel = PlantGroup:AddLabel("当前坐标: 0, 0, 0")
+task.spawn(function()
+	while task.wait(0.1) do
+		local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+		if root then CoordLabel:SetText(string.format("当前坐标: %.1f, %.1f, %.1f", root.Position.X, root.Position.Y, root.Position.Z)) end
+	end
+end)
+
+PlantGroup:AddButton("复制当前坐标", function()
+	local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
+	if root then setclipboard(string.format("%.1f, %.1f, %.1f", root.Position.X, root.Position.Y, root.Position.Z)) Library:Notify("已复制", 2) end
+end)
+
+HarvestGroup:AddToggle("AutoHarvest", {
+	Text = "全图通用收集",
+	Default = false,
+	Callback = function(v)
+		_G.AutoHarvest = v
+		task.spawn(function()
+			while _G.AutoHarvest do
+				local f = workspace:FindFirstChild("ClientPlants")
+				if f then for _, obj in ipairs(f:GetDescendants()) do if obj:IsA("ProximityPrompt") and obj.Enabled then fireproximityprompt(obj) end end end
+				task.wait(0.1)
+			end
+		end)
+	end
+})
 
 GearGroup:AddToggle("AutoBuyGear", { Text = "自动购买道具", Default = false, Callback = function(v) _G.AutoBuyGear = v end })
 GearGroup:AddDropdown("GearDropdown", { Values = GearNames, Default = 1, Multi = true, Text = "选择购买道具" })
@@ -266,7 +353,7 @@ task.spawn(function()
 	end
 end)
 
-MainGroup:AddToggle("AutoEquipPlant", {
+EquipGroup:AddToggle("AutoEquipPlant", {
 	Text = "自动装备种植",
 	Default = false,
 	Callback = function(v)
@@ -299,9 +386,9 @@ MainGroup:AddToggle("AutoEquipPlant", {
 	end
 })
 
-MainGroup:AddSlider("EquipDelay", { Text = "装备种植延迟", Default = 0.5, Min = 0.05, Max = 3, Rounding = 2 })
-MainGroup:AddDropdown("EquipDropdown", { Values = SeedNames, Default = 1, Multi = true, Text = "选择自动装备种植种子" })
-MainGroup:AddButton("全选/取消装备", function()
+EquipGroup:AddSlider("EquipDelay", { Text = "装备种植延迟", Default = 0.5, Min = 0.05, Max = 3, Rounding = 2 })
+EquipGroup:AddDropdown("EquipDropdown", { Values = SeedNames, Default = 1, Multi = true, Text = "选择自动装备种植种子" })
+EquipGroup:AddButton("全选/取消装备", function()
 	local current = Library.Options.EquipDropdown.Value
 	local anySelected = false
 	for _, v in pairs(current) do if v then anySelected = true break end end
@@ -309,92 +396,6 @@ MainGroup:AddButton("全选/取消装备", function()
 	for _, name in ipairs(SeedNames) do newState[name] = not anySelected end
 	Library.Options.EquipDropdown:SetValue(newState)
 end)
-
-MainGroup:AddToggle("AutoPlant", {
-	Text = "自动种植 (移动触发)",
-	Default = false,
-	Callback = function(v)
-		_G.AutoPlant = v
-		task.spawn(function()
-			local PlantRemote = ReplicatedStorage.RemoteEvents.PlantSeed
-			while _G.AutoPlant do
-				local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-				if root and root.Velocity.Magnitude > 0.1 then
-					local p = root.Position - Vector3.new(0, 3, 0)
-					for fullName, enabled in pairs(Library.Options.PlantDropdown.Value) do
-						if enabled and _G.AutoPlant then PlantRemote:InvokeServer(string.gsub(fullName, " Seed", ""), p) end
-					end
-				end
-				task.wait(Library.Options.PlantDelay.Value)
-			end
-		end)
-	end
-})
-
-MainGroup:AddToggle("AutoPlantAtPos", {
-	Text = "定点自动种植",
-	Default = false,
-	Callback = function(v)
-		_G.AutoPlantAtPos = v
-		task.spawn(function()
-			local PlantRemote = ReplicatedStorage.RemoteEvents:FindFirstChild("PlantSeed")
-			while _G.AutoPlantAtPos do
-				local coords = string.split(Library.Options.CustomPos.Value, ",")
-				if #coords >= 3 then
-					local x, y, z = tonumber(coords[1]), tonumber(coords[2]), tonumber(coords[3])
-					if x and y and z and PlantRemote then
-						for fullName, enabled in pairs(Library.Options.PlantDropdown.Value) do
-							if enabled and _G.AutoPlantAtPos then PlantRemote:InvokeServer(string.gsub(fullName, " Seed", ""), Vector3.new(x, y, z)) end
-						end
-					end
-				end
-				task.wait(Library.Options.PlantDelay.Value)
-			end
-		end)
-	end
-})
-
-MainGroup:AddSlider("PlantDelay", { Text = "种植速度延迟", Default = 0.1, Min = 0.01, Max = 1, Rounding = 2 })
-MainGroup:AddInput("CustomPos", { Text = "设置坐标 (x,y,z)", Default = "0,0,0" })
-MainGroup:AddDropdown("PlantDropdown", { Values = SeedNames, Default = 1, Multi = true, Text = "选择种植植物" })
-MainGroup:AddButton("全选/取消种植", function()
-	local current = Library.Options.PlantDropdown.Value
-	local anySelected = false
-	for _, v in pairs(current) do if v then anySelected = true break end end
-	local newState = {}
-	for _, name in ipairs(SeedNames) do newState[name] = not anySelected end
-	Library.Options.PlantDropdown:SetValue(newState)
-end)
-
-local CoordLabel = MainGroup:AddLabel("当前坐标: 0, 0, 0")
-task.spawn(function()
-	while task.wait(0.1) do
-		local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-		if root then CoordLabel:SetText(string.format("当前坐标: %.1f, %.1f, %.1f", root.Position.X, root.Position.Y, root.Position.Z)) end
-	end
-end)
-
-MainGroup:AddButton("复制当前坐标", function()
-	local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-	if root then setclipboard(string.format("%.1f, %.1f, %.1f", root.Position.X, root.Position.Y, root.Position.Z)) Library:Notify("已复制", 2) end
-end)
-
-MainGroup:AddToggle("AutoHarvest", {
-	Text = "全图通用收集",
-	Default = false,
-	Callback = function(v)
-		_G.AutoHarvest = v
-		task.spawn(function()
-			while _G.AutoHarvest do
-				local f = workspace:FindFirstChild("ClientPlants")
-				if f then for _, obj in ipairs(f:GetDescendants()) do if obj:IsA("ProximityPrompt") and obj.Enabled then fireproximityprompt(obj) end end end
-				task.wait(0.1)
-			end
-		end)
-	end
-})
-
-MainGroup:AddSlider("ActionDelay", { Text = "执行速度延迟", Default = 0.3, Min = 0.05, Max = 1, Rounding = 2 })
 
 SaveManager:SetLibrary(Library)
 SaveManager:BuildConfigSection(Tabs["UI Settings"])
