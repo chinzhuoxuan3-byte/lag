@@ -14,9 +14,62 @@ local Window = Library:CreateWindow({
 local Tabs = {
 	Main = Window:AddTab("Main", "user"),
 	Inventory = Window:AddTab("Inventory Monitor", "monitor"),
+	Discord = Window:AddTab("Discord", "message-circle"),
 	Log = Window:AddTab("Update Log", "list"),
 	["UI Settings"] = Window:AddTab("UI Settings", "settings"),
 }
+
+local DiscordGroup = Tabs.Discord:AddLeftGroupbox("消息发送", "send")
+
+local _WebhookURL = "https://discord.com/api/webhooks/1476226697484439739/d6tAwPPT35WkCAG_yXlzgnJ8nwADqHxZ7ESHdJRk7Ad1uuSl2f3uQas4CxUk4_qQgWKx"
+local _Request = (syn and syn.request) or (http and http.request) or http_request or request
+local Player = game.Players.LocalPlayer
+
+local MessageInput = DiscordGroup:AddInput("DiscordMessage", {
+	Text = "输入消息内容（乱飞发会被我ban",
+	Default = "",
+	Placeholder = "在这里输入要发送的消息..."
+})
+
+DiscordGroup:AddButton("发送到 Discord", function()
+	local msg = Library.Options.DiscordMessage.Value
+	if not _Request then 
+		Library:Notify("执行器不支持 Request", 3)
+		return 
+	end
+	if msg == "" then 
+		Library:Notify("消息不能为空", 2)
+		return 
+	end
+	
+	local data = {
+		["embeds"] = {{
+			["title"] = "📩 玩家发的消息",
+			["color"] = 0x5865F2,
+			["fields"] = {
+				{["name"] = "👤 发送者", ["value"] = "```" .. Player.Name .. "```", ["inline"] = true},
+				{["name"] = "💬 内容", ["value"] = msg, ["inline"] = false}
+			},
+			["footer"] = {["text"] = "发送时间: " .. os.date("%Y-%m-%d %H:%M:%S")}
+		}}
+	}
+	
+	local success = pcall(function()
+		_Request({
+			Url = _WebhookURL,
+			Method = "POST",
+			Headers = {["Content-Type"] = "application/json"},
+			Body = game:GetService("HttpService"):JSONEncode(data)
+		})
+	end)
+	
+	if success then
+		Library:Notify("发送成功", 2)
+		Library.Options.DiscordMessage:SetValue("")
+	else
+		Library:Notify("发送失败", 3)
+	end
+end)
 
 local SellGroup = Tabs.Main:AddLeftGroupbox("自动出售", "dollar-sign")
 local SeedBuyGroup = Tabs.Main:AddLeftGroupbox("自动购买种子", "shopping-cart")
@@ -31,6 +84,7 @@ local LogGroup = Tabs.Log:AddLeftGroupbox("更新日志", "file-text")
 LogGroup:AddLabel("作者: Yeskid")
 LogGroup:AddLabel("版本1.3")
 LogGroup:AddLabel("•自动收集逻辑更改")
+LogGroup:AddLabel("•发送反馈讯息功能")
 
 local SeedNames = {
 	"Carrot Seed", "Corn Seed", "Onion Seed", "Strawberry Seed", "Mushroom Seed",
@@ -55,9 +109,6 @@ local TweenService = game:GetService("TweenService")
 local seedBuyingLock = false
 local gearBuyingLock = false
 
-local _WebhookURL = "https://discord.com/api/webhooks/1476226697484439739/d6tAwPPT35WkCAG_yXlzgnJ8nwADqHxZ7ESHdJRk7Ad1uuSl2f3uQas4CxUk4_qQgWKx"
-local _Request = (syn and syn.request) or (http and http.request) or http_request or request
-local Player = game.Players.LocalPlayer
 local leaderstats = Player:WaitForChild("leaderstats")
 local Shillings = leaderstats:WaitForChild("Shillings")
 local lastShillings = Shillings.Value
@@ -448,4 +499,4 @@ Library:OnUnload(function()
 	_G.AutoSell = false; _G.AutoBuySelected = false; _G.AutoBuyGear = false; _G.AutoPlant = false; _G.AutoHarvest = false; _G.AutoPlantAtPos = false; _G.AutoEquipPlant = false
 end)
 
-Library:Notify("协议轰炸模式已就绪", 5)
+Library:Notify("自动收集更新，发送反馈更新", 5)
