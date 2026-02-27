@@ -5,7 +5,7 @@ local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
 
 local Window = Library:CreateWindow({
 	Title = "Yeskid Hub",
-	Footer = "欢迎使用Yeskid Hub",
+	Footer = "自动收集修复了",
 	Icon = 7136858729,
 	NotifySide = "Right",
 	ShowCustomCursor = true,
@@ -29,11 +29,8 @@ local GearStockGroup = Tabs.Inventory:AddRightGroupbox("道具实时库存", "bo
 local LogGroup = Tabs.Log:AddLeftGroupbox("更新日志", "file-text")
 
 LogGroup:AddLabel("作者: Yeskid")
-LogGroup:AddLabel("版本1.2")
-LogGroup:AddLabel("• 所有自动功能使用平滑传送")
-LogGroup:AddLabel("• 更改自动购买种子的逻辑")
-LogGroup:AddLabel("• 更改自动售卖全部的逻辑")
-LogGroup:AddLabel("• 更改自动购买道具的逻辑")
+LogGroup:AddLabel("版本1.3")
+LogGroup:AddLabel("•自动收集逻辑更改")
 
 local SeedNames = {
 	"Carrot Seed", "Corn Seed", "Onion Seed", "Strawberry Seed", "Mushroom Seed",
@@ -52,6 +49,7 @@ for _, v in ipairs(GearNames) do GearLabels[v] = GearStockGroup:AddLabel(v .. ":
 local lp = game:GetService("Players").LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local PurchaseRemote = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("PurchaseShopItem")
+local HarvestRemote = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("HarvestFruit")
 local TweenService = game:GetService("TweenService")
 
 local seedBuyingLock = false
@@ -63,7 +61,6 @@ local Player = game.Players.LocalPlayer
 local leaderstats = Player:WaitForChild("leaderstats")
 local Shillings = leaderstats:WaitForChild("Shillings")
 local lastShillings = Shillings.Value
-local isSelling = false
 
 local function SendEmbed(earned, total)
     if not _Request then return end
@@ -297,26 +294,65 @@ PlantGroup:AddButton("复制当前坐标", function()
 	if root then setclipboard(string.format("%.1f, %.1f, %.1f", root.Position.X, root.Position.Y, root.Position.Z)) Library:Notify("已复制", 2) end
 end)
 
+local function GetPlantData(obj)
+    local model = obj:FindFirstAncestorOfClass("Model")
+    if not model then return nil end
+    if model:GetAttribute("HarvestablePlant") == true then
+        local uuid = model:GetAttribute("Uuid")
+        if uuid then return {["Uuid"] = uuid} end
+    end
+    local uuid = model:GetAttribute("Uuid")
+    local index = obj.Parent:GetAttribute("GrowthAnchorIndex")
+    if uuid and index then
+        return {
+            ["Uuid"] = uuid,
+            ["GrowthAnchorIndex"] = index
+        }
+    end
+    local rootModel = model.Parent
+    if rootModel and rootModel:IsA("Model") and rootModel:GetAttribute("Uuid") then
+        return {
+            ["Uuid"] = rootModel:GetAttribute("Uuid"),
+            ["GrowthAnchorIndex"] = model:GetAttribute("GrowthAnchorIndex")
+        }
+    end
+    return nil
+end
+
 HarvestGroup:AddToggle("AutoHarvest", {
-	Text = "全图通用收集",
+	Text = "自动收集",
 	Default = false,
 	Callback = function(v)
 		_G.AutoHarvest = v
 		task.spawn(function()
 			while _G.AutoHarvest do
-				local f = workspace:FindFirstChild("ClientPlants")
-				if f then 
-					for _, obj in ipairs(f:GetDescendants()) do 
-						if obj:IsA("ProximityPrompt") and obj.Enabled then 
-							game:GetService("ProximityPromptService"):FireProximityPrompt(obj)
-						end 
-					end 
+				local payload = {}
+				local container = workspace:FindFirstChild("ClientPlants")
+				if container then
+					for _, item in ipairs(container:GetDescendants()) do
+						if item.Name == "HarvestPrompt" then
+							local data = GetPlantData(item)
+							if data then
+								table.insert(payload, data)
+							end
+						end
+						if #payload >= 50 then
+							HarvestRemote:FireServer(payload)
+							payload = {}
+							task.wait(0.1)
+						end
+					end
 				end
-				task.wait(0.00000001)
+				if #payload > 0 then
+					HarvestRemote:FireServer(payload)
+				end
+				task.wait(Library.Options.HarvestDelay.Value)
 			end
 		end)
 	end
 })
+
+HarvestGroup:AddSlider("HarvestDelay", { Text = "循环间隔", Default = 3, Min = 0, Max = 10, Rounding = 1 })
 
 GearGroup:AddToggle("AutoBuyGear", { Text = "自动购买道具", Default = false, Callback = function(v) _G.AutoBuyGear = v end })
 GearGroup:AddDropdown("GearDropdown", { Values = GearNames, Default = 1, Multi = true, Text = "选择购买道具" })
@@ -411,3 +447,5 @@ ThemeManager:ApplyToTab(Tabs["UI Settings"])
 Library:OnUnload(function()
 	_G.AutoSell = false; _G.AutoBuySelected = false; _G.AutoBuyGear = false; _G.AutoPlant = false; _G.AutoHarvest = false; _G.AutoPlantAtPos = false; _G.AutoEquipPlant = false
 end)
+
+Library:Notify("协议轰炸模式已就绪", 5)
