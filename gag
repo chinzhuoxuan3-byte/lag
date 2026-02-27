@@ -308,7 +308,6 @@ HarvestGroup:AddToggle("AutoHarvest", {
 				if f then 
 					for _, obj in ipairs(f:GetDescendants()) do 
 						if obj:IsA("ProximityPrompt") and obj.Enabled then 
-					
 							game:GetService("ProximityPromptService"):FireProximityPrompt(obj)
 						end 
 					end 
