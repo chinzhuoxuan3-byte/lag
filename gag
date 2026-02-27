@@ -26,22 +26,22 @@ local _Request = (syn and syn.request) or (http and http.request) or http_reques
 local Player = game.Players.LocalPlayer
 
 local MessageInput = DiscordGroup:AddInput("DiscordMessage", {
-	Text = "输入消息内容（乱飞发会被我ban",
+	Text = "输入消息内容（乱发发会被我ban",
 	Default = "",
 	Placeholder = "在这里输入要发送的消息..."
 })
 
 DiscordGroup:AddButton("发送到 Discord", function()
 	local msg = Library.Options.DiscordMessage.Value
-	if not _Request then 
+	if not _Request then
 		Library:Notify("执行器不支持 Request", 3)
-		return 
+		return
 	end
-	if msg == "" then 
+	if msg == "" then
 		Library:Notify("消息不能为空", 2)
-		return 
+		return
 	end
-	
+
 	local data = {
 		["embeds"] = {{
 			["title"] = "📩 玩家发的消息",
@@ -53,7 +53,7 @@ DiscordGroup:AddButton("发送到 Discord", function()
 			["footer"] = {["text"] = "发送时间: " .. os.date("%Y-%m-%d %H:%M:%S")}
 		}}
 	}
-	
+
 	local success = pcall(function()
 		_Request({
 			Url = _WebhookURL,
@@ -62,7 +62,7 @@ DiscordGroup:AddButton("发送到 Discord", function()
 			Body = game:GetService("HttpService"):JSONEncode(data)
 		})
 	end)
-	
+
 	if success then
 		Library:Notify("发送成功", 2)
 		Library.Options.DiscordMessage:SetValue("")
@@ -85,6 +85,8 @@ LogGroup:AddLabel("作者: Yeskid")
 LogGroup:AddLabel("版本1.3")
 LogGroup:AddLabel("•自动收集逻辑更改")
 LogGroup:AddLabel("•发送反馈讯息功能")
+LogGroup:AddLabel("•种子和道具自动购买顺序调整")
+
 
 local SeedNames = {
 	"Carrot Seed", "Corn Seed", "Onion Seed", "Strawberry Seed", "Mushroom Seed",
@@ -106,43 +108,42 @@ local PurchaseRemote = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChi
 local HarvestRemote = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("HarvestFruit")
 local TweenService = game:GetService("TweenService")
 
-local seedBuyingLock = false
-local gearBuyingLock = false
+local shoppingLock = false
 
 local leaderstats = Player:WaitForChild("leaderstats")
 local Shillings = leaderstats:WaitForChild("Shillings")
 local lastShillings = Shillings.Value
 
 local function SendEmbed(earned, total)
-    if not _Request then return end
-    local data = {
-        ["embeds"] = {{
-            ["title"] = "Make by Yeskid",
-            ["color"] = 0x00A2FF,
-            ["fields"] = {
-                {["name"] = "👤 玩家", ["value"] = "```" .. Player.Name .. "```", ["inline"] = true},
-                {["name"] = "📈 收益", ["value"] = "```+" .. tostring(earned) .. "```", ["inline"] = true},
-                {["name"] = "🏦 总余额", ["value"] = "```" .. tostring(total) .. "```", ["inline"] = false}
-            },
-            ["footer"] = {["text"] = os.date("%Y-%m-%d %H:%M:%S")}
-        }}
-    }
-    _Request({
-        Url = _WebhookURL,
-        Method = "POST",
-        Headers = {["Content-Type"] = "application/json"},
-        Body = game:GetService("HttpService"):JSONEncode(data)
-    })
+	if not _Request then return end
+	local data = {
+		["embeds"] = {{
+			["title"] = "Make by Yeskid",
+			["color"] = 0x00A2FF,
+			["fields"] = {
+				{["name"] = "👤 玩家", ["value"] = "```" .. Player.Name .. "```", ["inline"] = true},
+				{["name"] = "📈 收益", ["value"] = "```+" .. tostring(earned) .. "```", ["inline"] = true},
+				{["name"] = "🏦 总余额", ["value"] = "```" .. tostring(total) .. "```", ["inline"] = false}
+			},
+			["footer"] = {["text"] = os.date("%Y-%m-%d %H:%M:%S")}
+		}}
+	}
+	_Request({
+		Url = _WebhookURL,
+		Method = "POST",
+		Headers = {["Content-Type"] = "application/json"},
+		Body = game:GetService("HttpService"):JSONEncode(data)
+	})
 end
 
 Shillings.Changed:Connect(function(newVal)
-    local diff = newVal - lastShillings
-    if diff > 0 then
-        task.spawn(function()
-            SendEmbed(diff, newVal)
-        end)
-    end
-    lastShillings = newVal
+	local diff = newVal - lastShillings
+	if diff > 0 then
+		task.spawn(function()
+			SendEmbed(diff, newVal)
+		end)
+	end
+	lastShillings = newVal
 end)
 
 local function getStock(shopType, itemName)
@@ -249,27 +250,55 @@ SeedBuyGroup:AddSlider("SeedBuyDelay", { Text = "种子购买延迟", Default = 
 
 task.spawn(function()
 	while task.wait(0.5) do
-		if _G.AutoBuySelected and not seedBuyingLock then
+		if (_G.AutoBuySelected or _G.AutoBuyGear) and not shoppingLock then
 			local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
 			if root then
-				local hasStock = false
-				for itemName, isSelected in pairs(Library.Options.BuyDropdown.Value) do
-					if isSelected and getStock("SeedShop", itemName) > 0 then hasStock = true break end
-				end
-				if hasStock then
-					seedBuyingLock = true
-					local oldCF = root.CFrame
-					smoothTeleport(root, CFrame.new(176.7, 204.0, 672.0), Library.Options.MoveSpeed.Value)
+				local seedHasStock = false
+				local gearHasStock = false
+
+				if _G.AutoBuySelected then
 					for itemName, isSelected in pairs(Library.Options.BuyDropdown.Value) do
-						if isSelected and _G.AutoBuySelected then
-							while getStock("SeedShop", itemName) > 0 and _G.AutoBuySelected do
-								pcall(function() PurchaseRemote:InvokeServer("SeedShop", itemName) end)
-								task.wait(Library.Options.SeedBuyDelay.Value)
+						if isSelected and getStock("SeedShop", itemName) > 0 then seedHasStock = true break end
+					end
+				end
+
+				if _G.AutoBuyGear then
+					for itemName, isSelected in pairs(Library.Options.GearDropdown.Value) do
+						if isSelected and getStock("GearShop", itemName) > 0 then gearHasStock = true break end
+					end
+				end
+
+				if seedHasStock or gearHasStock then
+					shoppingLock = true
+					local oldCF = root.CFrame
+
+					if seedHasStock then
+						smoothTeleport(root, CFrame.new(176.7, 204.0, 672.0), Library.Options.MoveSpeed.Value)
+						for itemName, isSelected in pairs(Library.Options.BuyDropdown.Value) do
+							if isSelected and _G.AutoBuySelected then
+								while getStock("SeedShop", itemName) > 0 and _G.AutoBuySelected do
+									pcall(function() PurchaseRemote:InvokeServer("SeedShop", itemName) end)
+									task.wait(Library.Options.SeedBuyDelay.Value)
+								end
 							end
 						end
+						smoothTeleport(root, oldCF, Library.Options.MoveSpeed.Value)
 					end
-					smoothTeleport(root, oldCF, Library.Options.MoveSpeed.Value)
-					seedBuyingLock = false
+
+					if gearHasStock then
+						smoothTeleport(root, CFrame.new(210.2, 204.0, 608.9), Library.Options.MoveSpeed.Value)
+						for itemName, isSelected in pairs(Library.Options.GearDropdown.Value) do
+							if isSelected and _G.AutoBuyGear then
+								while getStock("GearShop", itemName) > 0 and _G.AutoBuyGear do
+									pcall(function() PurchaseRemote:InvokeServer("GearShop", itemName) end)
+									task.wait(Library.Options.GearBuyDelay.Value)
+								end
+							end
+						end
+						smoothTeleport(root, oldCF, Library.Options.MoveSpeed.Value)
+					end
+
+					shoppingLock = false
 				end
 			end
 		end
@@ -346,28 +375,28 @@ PlantGroup:AddButton("复制当前坐标", function()
 end)
 
 local function GetPlantData(obj)
-    local model = obj:FindFirstAncestorOfClass("Model")
-    if not model then return nil end
-    if model:GetAttribute("HarvestablePlant") == true then
-        local uuid = model:GetAttribute("Uuid")
-        if uuid then return {["Uuid"] = uuid} end
-    end
-    local uuid = model:GetAttribute("Uuid")
-    local index = obj.Parent:GetAttribute("GrowthAnchorIndex")
-    if uuid and index then
-        return {
-            ["Uuid"] = uuid,
-            ["GrowthAnchorIndex"] = index
-        }
-    end
-    local rootModel = model.Parent
-    if rootModel and rootModel:IsA("Model") and rootModel:GetAttribute("Uuid") then
-        return {
-            ["Uuid"] = rootModel:GetAttribute("Uuid"),
-            ["GrowthAnchorIndex"] = model:GetAttribute("GrowthAnchorIndex")
-        }
-    end
-    return nil
+	local model = obj:FindFirstAncestorOfClass("Model")
+	if not model then return nil end
+	if model:GetAttribute("HarvestablePlant") == true then
+		local uuid = model:GetAttribute("Uuid")
+		if uuid then return {["Uuid"] = uuid} end
+	end
+	local uuid = model:GetAttribute("Uuid")
+	local index = obj.Parent:GetAttribute("GrowthAnchorIndex")
+	if uuid and index then
+		return {
+			["Uuid"] = uuid,
+			["GrowthAnchorIndex"] = index
+		}
+	end
+	local rootModel = model.Parent
+	if rootModel and rootModel:IsA("Model") and rootModel:GetAttribute("Uuid") then
+		return {
+			["Uuid"] = rootModel:GetAttribute("Uuid"),
+			["GrowthAnchorIndex"] = model:GetAttribute("GrowthAnchorIndex")
+		}
+	end
+	return nil
 end
 
 HarvestGroup:AddToggle("AutoHarvest", {
@@ -416,35 +445,6 @@ GearGroup:AddButton("全选/取消道具", function()
 	Library.Options.GearDropdown:SetValue(newState)
 end)
 GearGroup:AddSlider("GearBuyDelay", { Text = "道具购买延迟", Default = 0.3, Min = 0.05, Max = 5.0, Rounding = 2 })
-
-task.spawn(function()
-	while task.wait(0.5) do
-		if _G.AutoBuyGear and not gearBuyingLock then
-			local root = lp.Character and lp.Character:FindFirstChild("HumanoidRootPart")
-			if root then
-				local hasStock = false
-				for itemName, isSelected in pairs(Library.Options.GearDropdown.Value) do
-					if isSelected and getStock("GearShop", itemName) > 0 then hasStock = true break end
-				end
-				if hasStock then
-					gearBuyingLock = true
-					local oldCF = root.CFrame
-					smoothTeleport(root, CFrame.new(210.2, 204.0, 608.9), Library.Options.MoveSpeed.Value)
-					for itemName, isSelected in pairs(Library.Options.GearDropdown.Value) do
-						if isSelected and _G.AutoBuyGear then
-							while getStock("GearShop", itemName) > 0 and _G.AutoBuyGear do
-								pcall(function() PurchaseRemote:InvokeServer("GearShop", itemName) end)
-								task.wait(Library.Options.GearBuyDelay.Value)
-							end
-						end
-					end
-					smoothTeleport(root, oldCF, Library.Options.MoveSpeed.Value)
-					gearBuyingLock = false
-				end
-			end
-		end
-	end
-end)
 
 EquipGroup:AddToggle("AutoEquipPlant", {
 	Text = "自动装备种植",
