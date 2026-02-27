@@ -305,8 +305,15 @@ HarvestGroup:AddToggle("AutoHarvest", {
 		task.spawn(function()
 			while _G.AutoHarvest do
 				local f = workspace:FindFirstChild("ClientPlants")
-				if f then for _, obj in ipairs(f:GetDescendants()) do if obj:IsA("ProximityPrompt") and obj.Enabled then fireproximityprompt(obj) end end end
-				task.wait(0.1)
+				if f then 
+					for _, obj in ipairs(f:GetDescendants()) do 
+						if obj:IsA("ProximityPrompt") and obj.Enabled then 
+					
+							game:GetService("ProximityPromptService"):FireProximityPrompt(obj)
+						end 
+					end 
+				end
+				task.wait(0.00000001)
 			end
 		end)
 	end
