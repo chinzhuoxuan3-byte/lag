@@ -5,7 +5,7 @@ local SaveManager = loadstring(game:HttpGet(repo .. "addons/SaveManager.lua"))()
 
 local Window = Library:CreateWindow({
 	Title = "Yeskid Hub",
-	Footer = "自动收集修复了",
+	Footer = "更新了1.4",
 	Icon = 7136858729,
 	NotifySide = "Right",
 	ShowCustomCursor = true,
@@ -26,7 +26,7 @@ local _Request = (syn and syn.request) or (http and http.request) or http_reques
 local Player = game.Players.LocalPlayer
 
 local MessageInput = DiscordGroup:AddInput("DiscordMessage", {
-	Text = "输入消息内容（乱发发会被我ban",
+	Text = "输入消息内容（乱发会被我ban",
 	Default = "",
 	Placeholder = "在这里输入要发送的消息..."
 })
@@ -82,20 +82,21 @@ local GearStockGroup = Tabs.Inventory:AddRightGroupbox("道具实时库存", "bo
 local LogGroup = Tabs.Log:AddLeftGroupbox("更新日志", "file-text")
 
 LogGroup:AddLabel("作者: Yeskid")
-LogGroup:AddLabel("版本1.3")
-LogGroup:AddLabel("•自动收集逻辑更改")
-LogGroup:AddLabel("•发送反馈讯息功能")
-LogGroup:AddLabel("•种子和道具自动购买顺序调整")
+LogGroup:AddLabel("版本1.4")
+LogGroup:AddLabel("•自动购买Mango Seed")
+LogGroup:AddLabel("•自动购买Bamboo Seed")
+LogGroup:AddLabel("•自动购买Trowel")
 
 
 local SeedNames = {
 	"Carrot Seed", "Corn Seed", "Onion Seed", "Strawberry Seed", "Mushroom Seed",
 	"Tomato Seed", "Beetroot Seed", "Apple Seed", "Rose Seed", "Wheat Seed",
-	"Banana Seed", "Plum Seed", "Potato Seed", "Cabbage Seed", "Cherry Seed"
+	"Banana Seed", "Plum Seed", "Potato Seed", "Cabbage Seed", "Cherry Seed",
+	"Bamboo Seed", "Mango Seed"
 }
 
 local GearNames = {
-	"Watering Can", "Basic Sprinkler", "Harvest Bell", "Turbo Sprinkler", "Favorite Tool", "Super Sprinkler"
+	"Watering Can", "Basic Sprinkler", "Harvest Bell", "Turbo Sprinkler", "Favorite Tool", "Super Sprinkler", "Trowel"
 }
 
 local SeedLabels, GearLabels = {}, {}
@@ -499,4 +500,4 @@ Library:OnUnload(function()
 	_G.AutoSell = false; _G.AutoBuySelected = false; _G.AutoBuyGear = false; _G.AutoPlant = false; _G.AutoHarvest = false; _G.AutoPlantAtPos = false; _G.AutoEquipPlant = false
 end)
 
-Library:Notify("自动收集更新，发送反馈更新", 5)
+Library:Notify("自动购买增加新种子和道具", 5)
